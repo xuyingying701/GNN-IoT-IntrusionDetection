@@ -2,11 +2,11 @@ import os
 import numpy as np
 import torch
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.metrics import (classification_report,confusion_matrix)
+from sklearn.metrics import (classification_report, confusion_matrix)
 import warnings
 import time
 import matplotlib.pyplot as plt
-import seaborn as sns  # 画热力图（混淆矩阵）
+import seaborn as sns
 import gc
 import json
 import yaml
@@ -31,71 +31,38 @@ os.environ['PYTHONHASHSEED'] = str(42)
 def run_optimized_training(config: Config):
     """主训练函数"""
 
-    # 初始化组件
-    processor = DataProcessor(config)  # 数据处理器：负责加载和预处理数据
-    builder = GraphBuilder()  # 图构建器：将DataFrame转换为图结构
+    #初始化组件
+    processor = DataProcessor(config)   #数据处理器：负责加载和预处理数据
+    builder = GraphBuilder()            #图构建器：将DataFrame转换为图结构
 
-    # 加载和预处理数据
+    #加载和预处理数据
     df = processor.load_data()
     df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df)
-
-    # 构建图
+    #构建图
     data = builder.build(df, train_idx, val_idx, test_idx, feature_cols)
-    #=========================
-    # 在 data = builder.build(...) 之后添加：
 
-    print("\n[验证] 检查数据泄露...")
-    train_nodes = torch.unique(torch.cat([
-        data.edge_index[0, data.train_mask],
-        data.edge_index[1, data.train_mask]
-    ]))
-    test_nodes = torch.unique(torch.cat([
-        data.edge_index[0, data.test_mask],
-        data.edge_index[1, data.test_mask]
-    ]))
-
-    # 检查测试节点是否在训练节点中
-    overlap = torch.isin(test_nodes, train_nodes).sum().item()
-    total_test = len(test_nodes)
-    print(f"   训练节点数: {len(train_nodes)}")
-    print(f"   测试节点数: {total_test}")
-    print(f"   重叠节点数: {overlap} ({overlap / total_test * 100:.1f}%)")
-
-    if overlap == total_test:
-        print("   ⚠️  警告：所有测试节点都在训练集中出现过（图结构特性，无法避免）")
-        print("   ✅ 但节点特征只从训练边构建，无特征泄露")
-    else:
-        print(f"   ✅ 有 {total_test - overlap} 个全新测试节点")
-        #===========================================================
-
-    # 清理内存
+    #清理内存
     del df
     gc.collect()
 
-    # 计算类别权重（使用平滑权重）
-    y_train = data.y[data.train_mask].numpy()  # 提取训练集的标签
-    present_classes = np.unique(y_train)  # 找出训练集中出现的所有类别
-    class_weights_dict = compute_class_weight('balanced', classes=present_classes,
-                                              y=y_train)  # 自动平衡权重，让少数类获得更高权重,返回一个字典或数组，每个类别对应一个权重
+    # 计算类别权重
+    y_train = data.y[data.train_mask].numpy()           #训练集标签
+    present_classes = np.unique(y_train)                #出现的类别ID
+    class_weights_dict = compute_class_weight('balanced', classes=present_classes, y=y_train)       #每个类别的权重
 
-    # 将计算出的类别权重进行平滑处理
     full_class_weights = np.ones(len(attack_names), dtype=np.float32)
     for i, cls in enumerate(present_classes):
-        full_class_weights[cls] = class_weights_dict[i] ** 0.7  # 平滑权重
+        full_class_weights[cls] = class_weights_dict[i] ** 0.7
 
-    # 创建一个反向映射字典
     attack_name_to_id = {v: k for k, v in attack_names.items()}
-    # 类别ID到gamma值的映射表
     class_gamma_map = {}
 
-    # 对特定攻击类别的权重进行额外增强,让模型更加关注这些攻击类型
     for class_name, boost in config.class_specific_boost.items():
         if class_name in attack_name_to_id:
             class_id = attack_name_to_id[class_name]
-            full_class_weights[class_id] *= boost  # 将该类别的权重乘以增强倍数
+            full_class_weights[class_id] *= boost
             print(f"🎯 {class_name} (ID:{class_id}) 权重: {full_class_weights[class_id]:.2f}")
 
-    # 为特定的攻击类别设置focal loss的gamma参数，让不同攻击类型使用不同的聚焦程度
     for class_name, gamma in config.class_gamma.items():
         if class_name in attack_name_to_id:
             class_gamma_map[attack_name_to_id[class_name]] = gamma
@@ -106,66 +73,55 @@ def run_optimized_training(config: Config):
     for i, name in attack_names.items():
         print(f"   {name}: {full_class_weights[i]:.2f}")
 
-    # 设置设备
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"\n使用设备: {device}")
 
-    # 将 数据 和 权重张量 移动到指定的计算设备（CPU）上
     data = data.to(device)
     class_weights = class_weights.to(device)
 
-    # 创建一个图Transformer模型
     model = GraphTransformer(
-        data.x.size(1),  # 节点特征维度
-        data.edge_attr.size(1),  # 边特征维度
-        config.hidden_channels,  # 隐藏层维度
-        len(attack_names),  # 输出类别数
-        config.num_heads,  # 注意力头数
-        config.num_layers,  # Transformer层数
-        config.dropout  # Dropout比率
+        data.x.size(1),
+        data.edge_attr.size(1),
+        config.hidden_channels,
+        len(attack_names),
+        config.num_heads,
+        config.num_layers,
+        config.dropout
     ).to(device)
 
-    print(
-        f"\n🤖 模型参数量: {sum(p.numel() for p in model.parameters()):,}")  # sum(p.numel() for p in model.parameters()):,
+    print(f"\n🤖 模型参数量: {sum(p.numel() for p in model.parameters()):,}")
 
-    # 损失函数criterion          根据配置选择是否使用标签平滑
-    if config.use_label_smoothing:  # 如果配置里开启了标签平滑(模型不会太自信，泛化能力更强)
-        # 使用带标签平滑的 Focal Loss
-        criterion = FocalLoss(
-            weight=class_weights,  # 类别权重（处理样本不平衡）
-            class_gamma=class_gamma_map,  # 各类别的gamma值（处理检测难度）
-            default_gamma=config.base_focal_gamma,  # 默认gamma
-            label_smoothing=config.label_smoothing  # 标签平滑系数（0.1）
-        )
-    else:  # 如果没开启标签平滑
-        # 使用不带标签平滑的 Focal Loss
+    if config.use_label_smoothing:
         criterion = FocalLoss(
             weight=class_weights,
             class_gamma=class_gamma_map,
             default_gamma=config.base_focal_gamma,
-            label_smoothing=0.0  # 平滑系数为0，等于不使用
+            label_smoothing=config.label_smoothing
+        )
+    else:
+        criterion = FocalLoss(
+            weight=class_weights,
+            class_gamma=class_gamma_map,
+            default_gamma=config.base_focal_gamma,
+            label_smoothing=0.0
         )
 
-    # 创建一个 AdamW 优化器(用来更新模型的参数)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.learning_rate,
         weight_decay=config.weight_decay
     )
 
-    # 创建一个学习率调度器，当模型性能不再提升时，自动降低学习率
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,  # 要调整哪个优化器
-        mode='max',  # 监控什么（'max'=越大越好，比如准确率）
-        factor=0.5,  # 学习率降低多少（乘以0.5，减半）
-        patience=10,  # 等多少轮没提升才降低
-        verbose=True  # 打印提示信息
+        optimizer,
+        mode='max',
+        factor=0.5,
+        patience=10,
+        verbose=True
     )
 
-    # 创建一个训练器对象
     trainer = Trainer(model, config, attack_names, device)
 
-    # 开始训练模型，并获取训练好的模型和最佳阈值
     model, best_thresholds = trainer.train(data, criterion, optimizer, scheduler)
 
     # 最终评估
@@ -178,7 +134,6 @@ def run_optimized_training(config: Config):
         y_pred_base = test_preds.numpy()
         y_prob = test_probs.numpy()
 
-        # 应用自适应阈值
         if config.use_adaptive_threshold and best_thresholds is not None:
             threshold_optimizer = AdaptiveThresholdOptimizer(config.threshold_strategy)
             threshold_optimizer.thresholds = best_thresholds
@@ -186,49 +141,21 @@ def run_optimized_training(config: Config):
         else:
             y_pred_optimized = y_pred_base
 
-        # 计算所有指标（包括误报率）
+        # 计算所有指标（MetricsCalculator 内部会打印详细指标）
         metrics = MetricsCalculator.calculate_all(
             y_true, y_pred_optimized, y_prob, attack_names
         )
 
-        # ================= 添加调试代码 =================
-        print("\n[调试] 混淆矩阵:")
-        cm = confusion_matrix(y_true, y_pred_optimized)
-        print(cm)
-
-        # 找到正常类的索引
-        normal_class_id = None
-        for idx, name in attack_names.items():
-            if name.lower() == 'normal':
-                normal_class_id = idx
-                break
-
-        if normal_class_id is not None:
-            print(f"\n[调试] 正常类 '{attack_names[normal_class_id]}' 索引: {normal_class_id}")
-            print(f"[调试] 正常类的列: {cm[:, normal_class_id]}")
-            print(f"[调试] 正常类的行: {cm[normal_class_id, :]}")
-
-            fp = cm[:, normal_class_id].sum() - cm[normal_class_id, normal_class_id]
-            tn = cm[normal_class_id, normal_class_id]
-            print(f"[调试] FP (误报): {fp}, TN (正确): {tn}")
-            print(f"[调试] 误报率 = {fp} / ({fp} + {tn}) = {fp / (fp + tn) if (fp + tn) > 0 else 0:.4f}")
-
-            fn = cm[normal_class_id, :].sum() - cm[normal_class_id, normal_class_id]
-            tp = cm[normal_class_id, normal_class_id]
-            print(f"[调试] FN (漏报): {fn}, TP (正确): {tp}")
-            print(f"[调试] 漏报率 = {fn} / ({fn} + {tp}) = {fn / (fn + tp) if (fn + tp) > 0 else 0:.4f}")
-        # ================= 调试结束 =================
-
-        # 打印结果
+        #打印结果
         print("\n" + "=" * 70)
         print(f"🏆 最终 Macro-F1: {metrics['macro_f1']:.4f}")
         print(f"📊 Accuracy: {metrics['accuracy']:.4f}")
         print(f"📈 Mean AUC-ROC: {metrics.get('mean_auc_roc', 0):.4f}")
         print(f"📉 Mean AUC-PR: {metrics.get('mean_auc_pr', 0):.4f}")
-        print(f"❌ 宏平均误报率 (Macro-FPR): {metrics.get('macro_fpr', 0):.4f} ({metrics.get('macro_fpr', 0):.2%})")
-        print(f"⚠️  宏平均漏报率 (Macro-FNR): {metrics.get('macro_fnr', 0):.4f} ({metrics.get('macro_fnr', 0):.2%})")
-        print(f"📊 二分类误报率 (Binary-FPR): {metrics.get('binary_fpr', 0):.4f}")
-        print(f"📊 二分类漏报率 (Binary-FNR): {metrics.get('binary_fnr', 0):.4f}")
+        print(f"❌ 宏平均误报率 (Macro-FPR): {metrics.get('macro_fpr', 0):.4f}")
+        print(f"⚠️ 宏平均漏报率 (Macro-FNR): {metrics.get('macro_fnr', 0):.4f}")
+        print(f"⚖️ 加权误报率: {metrics['weighted_fpr']:.4f}")
+        print(f"⚖️ 加权漏报率: {metrics['weighted_fnr']:.4f}")
         print("=" * 70)
 
         # 分类报告
@@ -268,7 +195,6 @@ def run_optimized_training(config: Config):
 
 def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     """绘制结果"""
-    # 混淆矩阵
     plt.figure(figsize=(14, 6))
 
     plt.subplot(1, 2, 1)
@@ -293,7 +219,6 @@ def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), dpi=150, bbox_inches='tight')
     plt.close()
 
-    # 训练曲线
     if trainer.train_losses:
         plt.figure(figsize=(12, 4))
 
@@ -326,7 +251,7 @@ def parse_args():
     parser.add_argument('--hidden_channels', type=int, default=128, help='Hidden channels')
     parser.add_argument('--epochs', type=int, default=300, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=10000, help='Batch size')
-    parser.add_argument('--output_dir', type=str, default='D:/01Thesis/04代码实现\project/results',
+    parser.add_argument('--output_dir', type=str, default='D:/01Thesis/04代码实现/project/results',
                         help='Output directory')
     return parser.parse_args()
 
@@ -335,16 +260,16 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    # 创建优化版配置
+    #创建优化版配置
     config = Config()
 
-    # 覆盖其他配置
+    #覆盖其他配置
     if args.config:
         with open(args.config, 'r', encoding='utf-8') as f:
             config_dict = yaml.safe_load(f)
             for k, v in config_dict.items():
-                if hasattr(config, k):  # 检查当前config对象是否有名为k的属性
-                    setattr(config, k, v)  # 动态设置对象的属性
+                if hasattr(config, k):          #检查当前config对象是否有名为k的属性
+                    setattr(config, k, v)       #动态设置对象的属性
     if args.hidden_channels:
         config.hidden_channels = args.hidden_channels
     if args.epochs:
@@ -385,5 +310,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ 错误: {e}")
         import traceback
-
         traceback.print_exc()

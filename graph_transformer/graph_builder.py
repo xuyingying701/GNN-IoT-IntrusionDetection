@@ -74,10 +74,10 @@ class GraphBuilder:
 
         # 创建图数据对象
         data = Data(x=node_attr, edge_index=edge_index, edge_attr=edge_attr)
-        data.y = edge_labels
-        data.train_mask = train_mask
-        data.val_mask = val_mask
-        data.test_mask = test_mask
+        data.y = edge_labels                #边标签
+        data.train_mask = train_mask        #训练掩码
+        data.val_mask = val_mask            #验证掩码
+        data.test_mask = test_mask          #测试掩码
 
         return data
 

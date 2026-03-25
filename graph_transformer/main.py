@@ -32,12 +32,11 @@ def run_optimized_training(config: Config):
 
     #初始化组件
     processor = DataProcessor(config)   #数据处理器：负责加载和预处理数据
-    builder = GraphBuilder()  #图构建器：将DataFrame转换为图结构
+    builder = GraphBuilder()            #图构建器：将DataFrame转换为图结构
 
     #加载和预处理数据
     df = processor.load_data()
     df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df)
-
     #构建图
     data = builder.build(df, train_idx, val_idx, test_idx, feature_cols)
 
@@ -167,6 +166,10 @@ def run_optimized_training(config: Config):
         print(f"📊 Accuracy: {metrics['accuracy']:.4f}")
         print(f"📈 Mean AUC-ROC: {metrics.get('mean_auc_roc', 0):.4f}")
         print(f"📉 Mean AUC-PR: {metrics.get('mean_auc_pr', 0):.4f}")
+        print(f"❌ 宏平均误报率 (Macro-FPR): {metrics.get('macro_fpr', 0):.4f}")
+        print(f"⚠️ 宏平均漏报率 (Macro-FNR): {metrics.get('macro_fnr', 0):.4f}")
+        print(f"⚖️  加权误报率: {metrics['weighted_fpr']:.4f}")
+        print(f"⚖️  加权漏报率: {metrics['weighted_fnr']:.4f}")
         print("=" * 70)
 
         # 分类报告
