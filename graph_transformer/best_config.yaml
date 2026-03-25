@@ -1,0 +1,41 @@
+# best_config.yaml
+# 模型架构参数
+hidden_channels: 256
+num_layers: 3
+num_heads: 8
+dropout: 0.4
+
+# 训练参数
+learning_rate: 0.0005
+epochs: 500
+batch_size: 8000
+weight_decay: 0.001
+
+# 策略开关
+use_adaptive_threshold: true
+use_label_smoothing: true
+label_smoothing: 0.1
+use_class_specific_gamma: true
+base_focal_gamma: 2.0
+
+# 类别特定参数
+class_specific_boost:
+  injection: 2.0
+  password: 2.0
+  mitm: 1.5
+
+class_gamma:
+  injection: 2.5
+  password: 3.0
+  mitm: 2.0
+
+# 自适应阈值策略
+threshold_strategy:
+  mitm:
+    target: f1
+  injection:
+    target: recall  # injection优先召回率（不漏报）
+  password:
+    target: precision  # password优先精确率（少误报）
+  default:
+    target: f1

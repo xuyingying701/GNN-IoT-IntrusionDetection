@@ -1,0 +1,15 @@
+class_specific_boost:
+  injection: 2.2
+  mitm: 1.5
+  password: 2.5
+data_path: "D:/01Thesis/04\u4EE3\u7801\u5B9E\u73B0/project/data/train_test_network.csv"
+max_depth: 30
+max_features: sqrt
+min_samples_leaf: 2
+min_samples_split: 5
+n_estimators: 200
+output_dir: ./rf_outputs
+random_seed: 42
+run_dir: ./rf_outputs\rf_run_20260316_100030
+timestamp: '20260316_100030'
+use_class_weight: true

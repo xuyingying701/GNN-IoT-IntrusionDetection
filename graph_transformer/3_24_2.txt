@@ -1,0 +1,471 @@
+D:\conda\envs\pyg38\python.exe D:\01Thesis\04代码实现\project\src\graph_transformer\1.py 
+======================================================================
+🚀 图Transformer - 物联网入侵检测
+======================================================================
+数据路径: D:\01Thesis\04代码实现\project\data\train_test_network.csv
+输出目录: D:/01Thesis/04代码实现\project/results\graph_transformer_run_20260324_194444
+隐藏层维度: 128
+学习率: 0.0003
+Dropout: 0.3
+标签平滑: 0.1
+======================================================================
+
+[1/4] 加载数据...
+数据形状: (211043, 44)
+
+📊 训练集类别分布:
+   backdoor: 12000
+   ddos: 12000
+   dos: 12000
+   injection: 12000
+   mitm: 625
+   normal: 30000
+   password: 12000
+   ransomware: 12000
+   scanning: 12000
+   xss: 12000
+
+[2/4] 构建图结构...
+   节点数: 776
+   边数: 211043
+   🛡️ 使用训练边构建节点特征（防止数据泄露）...
+   节点特征维度: 42
+   边特征维度: 41
+   训练边数: 126625
+
+[验证] 检查数据泄露...
+   训练节点数: 663
+   测试节点数: 433
+   重叠节点数: 356 (82.2%)
+   ✅ 有 77 个全新测试节点
+🎯 injection (ID:3) 权重: 1.56
+🎯 password (ID:6) 权重: 1.56
+🎯 mitm (ID:4) 权重: 9.86
+
+⚖️ 最终类别权重:
+   backdoor: 1.04
+   ddos: 1.04
+   dos: 1.04
+   injection: 1.56
+   mitm: 9.86
+   normal: 0.55
+   password: 1.56
+   ransomware: 1.04
+   scanning: 1.04
+   xss: 1.04
+
+使用设备: cpu
+
+🤖 模型参数量: 1,004,048
+
+[3/4] 开始训练...
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.3037
+   ddos: threshold=0.1681
+   dos: threshold=0.1969
+   injection: threshold=0.2539
+   mitm: threshold=0.2174
+   normal: threshold=0.1239
+   password: threshold=0.1687
+   ransomware: threshold=0.2590
+   scanning: threshold=0.1452
+   xss: threshold=0.1466
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.7477
+   ddos: threshold=0.3436
+   dos: threshold=0.2947
+   injection: threshold=0.3227
+   mitm: threshold=0.5511
+   normal: threshold=0.2165
+   password: threshold=0.4051
+   ransomware: threshold=0.3421
+   scanning: threshold=0.1687
+   xss: threshold=0.7590
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8334
+   ddos: threshold=0.7066
+   dos: threshold=0.4563
+   injection: threshold=0.3900
+   mitm: threshold=0.5470
+   normal: threshold=0.0400
+   password: threshold=0.4351
+   ransomware: threshold=0.1391
+   scanning: threshold=0.2417
+   xss: threshold=0.8764
+Epoch  20 | Loss: 0.3028 | Val F1: 0.8682 | Test F1: 0.8691 | Best Val: 0.8686
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.7925
+   ddos: threshold=0.5991
+   dos: threshold=0.4303
+   injection: threshold=0.4000
+   mitm: threshold=0.6696
+   normal: threshold=0.0838
+   password: threshold=0.4366
+   ransomware: threshold=0.1941
+   scanning: threshold=0.2793
+   xss: threshold=0.5289
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8350
+   ddos: threshold=0.5870
+   dos: threshold=0.4504
+   injection: threshold=0.4212
+   mitm: threshold=0.7299
+   normal: threshold=0.0980
+   password: threshold=0.4583
+   ransomware: threshold=0.1287
+   scanning: threshold=0.2528
+   xss: threshold=0.4902
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8455
+   ddos: threshold=0.4719
+   dos: threshold=0.4685
+   injection: threshold=0.3978
+   mitm: threshold=0.7493
+   normal: threshold=0.0950
+   password: threshold=0.4552
+   ransomware: threshold=0.1378
+   scanning: threshold=0.3424
+   xss: threshold=0.6332
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8723
+   ddos: threshold=0.4738
+   dos: threshold=0.4119
+   injection: threshold=0.4564
+   mitm: threshold=0.7785
+   normal: threshold=0.1055
+   password: threshold=0.4409
+   ransomware: threshold=0.1154
+   scanning: threshold=0.3274
+   xss: threshold=0.6324
+Epoch  40 | Loss: 0.2632 | Val F1: 0.8866 | Test F1: 0.8870 | Best Val: 0.8866
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8714
+   ddos: threshold=0.3659
+   dos: threshold=0.4000
+   injection: threshold=0.3614
+   mitm: threshold=0.7468
+   normal: threshold=0.0974
+   password: threshold=0.4316
+   ransomware: threshold=0.0884
+   scanning: threshold=0.3096
+   xss: threshold=0.6374
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.7147
+   ddos: threshold=0.3672
+   dos: threshold=0.3987
+   injection: threshold=0.4635
+   mitm: threshold=0.7194
+   normal: threshold=0.1287
+   password: threshold=0.4322
+   ransomware: threshold=0.2234
+   scanning: threshold=0.3278
+   xss: threshold=0.6061
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.6131
+   ddos: threshold=0.3251
+   dos: threshold=0.3757
+   injection: threshold=0.4592
+   mitm: threshold=0.7738
+   normal: threshold=0.1358
+   password: threshold=0.4317
+   ransomware: threshold=0.3177
+   scanning: threshold=0.2858
+   xss: threshold=0.6204
+Epoch  60 | Loss: 0.2363 | Val F1: 0.9079 | Test F1: 0.9079 | Best Val: 0.9079
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.5735
+   ddos: threshold=0.3899
+   dos: threshold=0.4005
+   injection: threshold=0.4568
+   mitm: threshold=0.7681
+   normal: threshold=0.1589
+   password: threshold=0.4613
+   ransomware: threshold=0.3057
+   scanning: threshold=0.3442
+   xss: threshold=0.5257
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.6569
+   ddos: threshold=0.4651
+   dos: threshold=0.3511
+   injection: threshold=0.4765
+   mitm: threshold=0.7797
+   normal: threshold=0.1803
+   password: threshold=0.3749
+   ransomware: threshold=0.3535
+   scanning: threshold=0.3469
+   xss: threshold=0.5389
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.6660
+   ddos: threshold=0.2856
+   dos: threshold=0.3518
+   injection: threshold=0.4594
+   mitm: threshold=0.7783
+   normal: threshold=0.1997
+   password: threshold=0.3945
+   ransomware: threshold=0.3371
+   scanning: threshold=0.3241
+   xss: threshold=0.5915
+Epoch  80 | Loss: 0.2187 | Val F1: 0.9162 | Test F1: 0.9145 | Best Val: 0.9162
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.2831
+   ddos: threshold=0.2855
+   dos: threshold=0.3384
+   injection: threshold=0.4039
+   mitm: threshold=0.7678
+   normal: threshold=0.2275
+   password: threshold=0.4352
+   ransomware: threshold=0.5280
+   scanning: threshold=0.3464
+   xss: threshold=0.5185
+Epoch 100 | Loss: 0.2090 | Val F1: 0.9166 | Test F1: 0.9158 | Best Val: 0.9177
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8119
+   ddos: threshold=0.4377
+   dos: threshold=0.3568
+   injection: threshold=0.4234
+   mitm: threshold=0.7818
+   normal: threshold=0.2339
+   password: threshold=0.3880
+   ransomware: threshold=0.1041
+   scanning: threshold=0.3931
+   xss: threshold=0.4364
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8291
+   ddos: threshold=0.4077
+   dos: threshold=0.3434
+   injection: threshold=0.3998
+   mitm: threshold=0.7715
+   normal: threshold=0.2535
+   password: threshold=0.4193
+   ransomware: threshold=0.0851
+   scanning: threshold=0.3614
+   xss: threshold=0.4904
+Epoch 120 | Loss: 0.2031 | Val F1: 0.9188 | Test F1: 0.9167 | Best Val: 0.9302
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8425
+   ddos: threshold=0.2551
+   dos: threshold=0.3689
+   injection: threshold=0.4322
+   mitm: threshold=0.7666
+   normal: threshold=0.2594
+   password: threshold=0.4213
+   ransomware: threshold=0.1124
+   scanning: threshold=0.3337
+   xss: threshold=0.4814
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.8113
+   ddos: threshold=0.3621
+   dos: threshold=0.3503
+   injection: threshold=0.4334
+   mitm: threshold=0.7597
+   normal: threshold=0.2557
+   password: threshold=0.4203
+   ransomware: threshold=0.1095
+   scanning: threshold=0.3611
+   xss: threshold=0.4673
+Epoch 140 | Loss: 0.1965 | Val F1: 0.9323 | Test F1: 0.9312 | Best Val: 0.9323
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.6248
+   ddos: threshold=0.2703
+   dos: threshold=0.2642
+   injection: threshold=0.4011
+   mitm: threshold=0.6145
+   normal: threshold=0.3528
+   password: threshold=0.4375
+   ransomware: threshold=0.2145
+   scanning: threshold=0.3787
+   xss: threshold=0.4821
+Epoch 160 | Loss: 0.1936 | Val F1: 0.9365 | Test F1: 0.9356 | Best Val: 0.9365
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.7285
+   ddos: threshold=0.2629
+   dos: threshold=0.4147
+   injection: threshold=0.4434
+   mitm: threshold=0.7102
+   normal: threshold=0.3475
+   password: threshold=0.4571
+   ransomware: threshold=0.2247
+   scanning: threshold=0.3204
+   xss: threshold=0.4291
+Epoch 180 | Loss: 0.1905 | Val F1: 0.9329 | Test F1: 0.9318 | Best Val: 0.9376
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.5310
+   ddos: threshold=0.3020
+   dos: threshold=0.2421
+   injection: threshold=0.3992
+   mitm: threshold=0.7190
+   normal: threshold=0.3296
+   password: threshold=0.4781
+   ransomware: threshold=0.2914
+   scanning: threshold=0.3618
+   xss: threshold=0.4542
+Epoch 200 | Loss: 0.1864 | Val F1: 0.9376 | Test F1: 0.9369 | Best Val: 0.9376
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.4915
+   ddos: threshold=0.3307
+   dos: threshold=0.2535
+   injection: threshold=0.4077
+   mitm: threshold=0.6488
+   normal: threshold=0.3660
+   password: threshold=0.4551
+   ransomware: threshold=0.3640
+   scanning: threshold=0.2505
+   xss: threshold=0.4773
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.5167
+   ddos: threshold=0.3160
+   dos: threshold=0.2441
+   injection: threshold=0.4005
+   mitm: threshold=0.6217
+   normal: threshold=0.4015
+   password: threshold=0.4584
+   ransomware: threshold=0.3267
+   scanning: threshold=0.3175
+   xss: threshold=0.4961
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.5204
+   ddos: threshold=0.3190
+   dos: threshold=0.2569
+   injection: threshold=0.3908
+   mitm: threshold=0.6381
+   normal: threshold=0.3685
+   password: threshold=0.4733
+   ransomware: threshold=0.3481
+   scanning: threshold=0.3655
+   xss: threshold=0.4416
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.5195
+   ddos: threshold=0.3092
+   dos: threshold=0.2477
+   injection: threshold=0.4246
+   mitm: threshold=0.7614
+   normal: threshold=0.3297
+   password: threshold=0.4573
+   ransomware: threshold=0.4134
+   scanning: threshold=0.3782
+   xss: threshold=0.4659
+Epoch 220 | Loss: 0.1844 | Val F1: 0.9414 | Test F1: 0.9395 | Best Val: 0.9414
+Epoch 240 | Loss: 0.1816 | Val F1: 0.9400 | Test F1: 0.9388 | Best Val: 0.9414
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.5339
+   ddos: threshold=0.3452
+   dos: threshold=0.3830
+   injection: threshold=0.4394
+   mitm: threshold=0.5222
+   normal: threshold=0.3850
+   password: threshold=0.4391
+   ransomware: threshold=0.4191
+   scanning: threshold=0.3727
+   xss: threshold=0.4867
+Epoch 260 | Loss: 0.1806 | Val F1: 0.9413 | Test F1: 0.9393 | Best Val: 0.9466
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.6434
+   ddos: threshold=0.3125
+   dos: threshold=0.3913
+   injection: threshold=0.4237
+   mitm: threshold=0.6188
+   normal: threshold=0.3744
+   password: threshold=0.4701
+   ransomware: threshold=0.4752
+   scanning: threshold=0.4286
+   xss: threshold=0.3758
+Epoch 280 | Loss: 0.1782 | Val F1: 0.9420 | Test F1: 0.9409 | Best Val: 0.9490
+
+🔍 计算自适应阈值...
+   backdoor: threshold=0.3997
+   ddos: threshold=0.3078
+   dos: threshold=0.3143
+   injection: threshold=0.4266
+   mitm: threshold=0.5969
+   normal: threshold=0.4362
+   password: threshold=0.4444
+   ransomware: threshold=0.5231
+   scanning: threshold=0.3890
+   xss: threshold=0.2646
+Epoch 300 | Loss: 0.1772 | Val F1: 0.9440 | Test F1: 0.9423 | Best Val: 0.9495
+
+✅ 加载最佳验证集模型 (Val F1: 0.9495)
+
+[4/4] 最终测试集评估...
+
+[安全指标] 以 'normal' 为负类：
+   误报(FP): 0, 正确拒绝(TN): 9999, 误报率(FPR): 0.0000
+   漏报(FN): 1, 正确检测(TP): 32209, 漏报率(FNR): 0.0000
+
+[调试] 混淆矩阵:
+[[3997    0    0    0    0    0    0    3    0    0]
+ [   0 3860   21   96    8    0   15    0    0    0]
+ [   0   15 3910   49    7    0    1    0   18    0]
+ [   0   65   72 3289    7    0  556    0   11    0]
+ [   0    0    2    4  203    0    0    0    0    0]
+ [   0    0    0    1    0 9999    0    0    0    0]
+ [   0    7   22  403   24    0 3544    0    0    0]
+ [   0    0    0    0    0    0    0 4000    0    0]
+ [   0    0   51    8   10    0   12    0 3916    3]
+ [   0    0    0    0    0    0    0    0   15 3985]]
+
+[调试] 正常类 'normal' 索引: 5
+[调试] 正常类的列: [   0    0    0    0    0 9999    0    0    0    0]
+[调试] 正常类的行: [   0    0    0    1    0 9999    0    0    0    0]
+[调试] FP (误报): 0, TN (正确): 9999
+[调试] 误报率 = 0 / (0 + 9999) = 0.0000
+[调试] FN (漏报): 1, TP (正确): 9999
+[调试] 漏报率 = 1 / (1 + 9999) = 0.0001
+
+======================================================================
+🏆 最终 Macro-F1: 0.9498
+📊 Accuracy: 0.9643
+📈 Mean AUC-ROC: 0.9985
+📉 Mean AUC-PR: 0.9818
+❌ 误报率 (FPR): 0.0000
+⚠️  漏报率 (FNR): 0.0000
+📊 整体误报率: 0.0000
+======================================================================
+
+分类报告:
+              precision    recall  f1-score   support
+
+    backdoor     1.0000    0.9992    0.9996      4000
+        ddos     0.9780    0.9650    0.9714      4000
+         dos     0.9588    0.9775    0.9681      4000
+   injection     0.8543    0.8223    0.8380      4000
+        mitm     0.7838    0.9713    0.8675       209
+      normal     1.0000    0.9999    0.9999     10000
+    password     0.8585    0.8860    0.8720      4000
+  ransomware     0.9993    1.0000    0.9996      4000
+    scanning     0.9889    0.9790    0.9839      4000
+         xss     0.9992    0.9962    0.9977      4000
+
+    accuracy                         0.9643     42209
+   macro avg     0.9421    0.9596    0.9498     42209
+weighted avg     0.9645    0.9643    0.9643     42209
+
+
+进程已结束，退出代码为 -1066598273 (0xC06D007F)

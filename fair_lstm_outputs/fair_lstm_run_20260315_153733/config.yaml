@@ -1,0 +1,18 @@
+batch_size: 10000
+bidirectional: true
+class_weights_boost:
+  injection: 2.2
+  mitm: 1.0
+  password: 2.5
+data_path: "D:/01Thesis/04\u4EE3\u7801\u5B9E\u73B0/project/data/train_test_network.csv"
+dropout: 0.2
+epochs: 300
+focal_gamma: 4.0
+hidden_channels: 128
+learning_rate: 0.0005
+num_layers: 2
+output_dir: ./fair_lstm_outputs
+patience: 50
+random_seed: 42
+run_dir: ./fair_lstm_outputs\fair_lstm_run_20260315_153733
+timestamp: '20260315_153733'

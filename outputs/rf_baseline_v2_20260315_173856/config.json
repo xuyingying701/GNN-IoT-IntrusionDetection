@@ -1,0 +1,13 @@
+{
+  "n_estimators": 300,
+  "random_seed": 42,
+  "data_path": "D:/01Thesis/04\u4ee3\u7801\u5b9e\u73b0/project/data/train_test_network.csv",
+  "exclude_cols": [
+    "src_ip",
+    "dst_ip",
+    "id",
+    "timestamp",
+    "Unnamed: 0",
+    "label"
+  ]
+}

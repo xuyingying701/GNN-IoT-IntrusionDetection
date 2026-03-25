@@ -1,0 +1,32 @@
+{
+  "model_type": "RandomForest",
+  "timestamp": "20260317_101035",
+  "parameters": {
+    "n_estimators": 200,
+    "max_depth": 30,
+    "min_samples_split": 5,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt"
+  },
+  "metrics": {
+    "accuracy": 0.9889597005378,
+    "macro_f1": 0.9647914057015505,
+    "weighted_f1": 0.98929052381475,
+    "train_time": 4.104964256286621,
+    "inference_time_ms": 0.006363588388395049,
+    "model_size_mb": 47.86892509460449,
+    "minority_avg_recall": 0.9569377990430622
+  },
+  "class_names": {
+    "0": "backdoor",
+    "1": "ddos",
+    "2": "dos",
+    "3": "injection",
+    "4": "mitm",
+    "5": "normal",
+    "6": "password",
+    "7": "ransomware",
+    "8": "scanning",
+    "9": "xss"
+  }
+}

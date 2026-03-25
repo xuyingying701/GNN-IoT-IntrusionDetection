@@ -1,0 +1,60 @@
+augment_factor:
+  default: 1
+  injection: 1
+  mitm: 1
+  password: 2
+base_focal_gamma: 4.0
+batch_size: 10000
+class_gamma:
+  injection: 3.2
+  mitm: 3.0
+  password: 4.5
+class_specific_boost:
+  injection: 2.2
+  mitm: 1.0
+  password: 2.5
+curriculum_stages:
+- 50
+- 150
+data_path: "D:/01Thesis/04\u4EE3\u7801\u5B9E\u73B0/project/data/train_test_network.csv"
+dropout: 0.2
+easy_classes:
+- normal
+- xss
+- dos
+- scanning
+- ddos
+- backdoor
+epochs: 300
+hard_classes:
+- mitm
+hidden_channels: 128
+learning_rate: 0.0005
+medium_classes:
+- ransomware
+- password
+- injection
+minority_threshold: 5000
+num_heads: 4
+num_layers: 2
+output_dir: ./outputs
+patience: 50
+random_seed: 42
+run_dir: ./outputs\run_20260314_162212
+threshold_strategy:
+  default:
+    target: f1
+  injection:
+    min_precision: 0.65
+    target: f1
+  mitm:
+    min_recall: 0.95
+    target: precision
+  password:
+    min_precision: 0.7
+    target: recall
+timestamp: '20260314_162212'
+use_adaptive_threshold: true
+use_class_specific_gamma: true
+use_curriculum: true
+use_data_augmentation: true

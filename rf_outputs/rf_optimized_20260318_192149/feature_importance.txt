@@ -1,0 +1,22 @@
+Top 20 Feature Importances:
+==================================================
+ 1. src_ip_bytes: 0.162141
+ 2. conn_state: 0.109560
+ 3. dst_port: 0.105341
+ 4. src_port: 0.101413
+ 5. dst_ip_bytes: 0.086137
+ 6. src_pkts: 0.063870
+ 7. label: 0.062487
+ 8. src_bytes: 0.060614
+ 9. dst_pkts: 0.055239
+10. duration: 0.050906
+11. dst_bytes: 0.037185
+12. service: 0.028234
+13. dns_RA: 0.016248
+14. proto: 0.013643
+15. dns_query: 0.010952
+16. dns_rejected: 0.009963
+17. dns_AA: 0.005675
+18. dns_RD: 0.005633
+19. dns_rcode: 0.004348
+20. dns_qclass: 0.004058

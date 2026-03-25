@@ -1,0 +1,20 @@
+project/src/
+├── main.py              # 主程序入口
+├── config.py            # 配置类
+├── model.py             # 模型定义 + Focal Loss
+├── data_loader.py       # 数据处理 + 图构建 + EdgeBatchLoader
+├── strategies.py        # 课程学习 + 自适应阈值
+├── trainer.py           # 训练器
+├── metrics.py           # 评估指标计算器
+└── visualization.py     # 可视化函数v
+
+
+
+
+
+对比指标建议
+精确率（Precision）
+召回率（Recall）
+F1-Score
+误报率（False Positive Rate）
+训练时间 / 推理时间（系统开销）

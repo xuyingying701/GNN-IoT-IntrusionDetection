@@ -1,0 +1,172 @@
+{
+  "config": {
+    "random_seed": 42,
+    "hidden_channels": 128,
+    "num_heads": 4,
+    "num_layers": 2,
+    "epochs": 300,
+    "patience": 50,
+    "learning_rate": 0.0005,
+    "dropout": 0.2,
+    "batch_size": 10000,
+    "use_curriculum": true,
+    "curriculum_stages": [
+      50,
+      150
+    ],
+    "use_adaptive_threshold": true,
+    "use_class_specific_gamma": true,
+    "base_focal_gamma": 4.0,
+    "easy_classes": [
+      "normal",
+      "xss",
+      "dos",
+      "scanning",
+      "ddos",
+      "backdoor"
+    ],
+    "medium_classes": [
+      "ransomware",
+      "password",
+      "injection"
+    ],
+    "hard_classes": [
+      "mitm"
+    ],
+    "class_specific_boost": {
+      "injection": 2.2,
+      "password": 2.5,
+      "mitm": 1.0
+    },
+    "class_gamma": {
+      "injection": 3.2,
+      "mitm": 3.0,
+      "password": 4.5
+    },
+    "threshold_strategy": {
+      "mitm": {
+        "target": "precision",
+        "min_recall": 0.95
+      },
+      "injection": {
+        "target": "f1",
+        "min_precision": 0.65
+      },
+      "password": {
+        "target": "recall",
+        "min_precision": 0.7
+      },
+      "default": {
+        "target": "f1"
+      }
+    },
+    "use_data_augmentation": true,
+    "augment_factor": {
+      "password": 2,
+      "injection": 1,
+      "mitm": 1,
+      "default": 1
+    },
+    "minority_threshold": 5000,
+    "data_path": "D:/01Thesis/04\u4ee3\u7801\u5b9e\u73b0/project/data/train_test_network.csv",
+    "output_dir": "./outputs",
+    "timestamp": "20260314_152818",
+    "run_dir": "./outputs\\run_20260314_152818"
+  },
+  "metrics": {
+    "macro_f1": 0.9346224851507398,
+    "micro_f1": 0.9564784761543746,
+    "weighted_f1": 0.9572733977901665,
+    "accuracy": 0.9564784761543746,
+    "per_class": {
+      "backdoor": {
+        "precision": 0.99825,
+        "recall": 0.99825,
+        "f1": 0.99825
+      },
+      "ddos": {
+        "precision": 0.9887670500133725,
+        "recall": 0.92425,
+        "f1": 0.9554205969763535
+      },
+      "dos": {
+        "precision": 0.9887991664495962,
+        "recall": 0.949,
+        "f1": 0.96849087893864
+      },
+      "injection": {
+        "precision": 0.8089410589410589,
+        "recall": 0.80975,
+        "f1": 0.8093453273363319
+      },
+      "mitm": {
+        "precision": 0.6807017543859649,
+        "recall": 0.9282296650717703,
+        "f1": 0.7854251012145749
+      },
+      "normal": {
+        "precision": 0.9997,
+        "recall": 0.9997,
+        "f1": 0.9997
+      },
+      "password": {
+        "precision": 0.8082345043633923,
+        "recall": 0.903,
+        "f1": 0.852993269571378
+      },
+      "ransomware": {
+        "precision": 0.99825,
+        "recall": 0.99825,
+        "f1": 0.99825
+      },
+      "scanning": {
+        "precision": 0.9953679876479671,
+        "recall": 0.967,
+        "f1": 0.9809789500380421
+      },
+      "xss": {
+        "precision": 0.99899673940306,
+        "recall": 0.99575,
+        "f1": 0.9973707274320772
+      }
+    },
+    "auc_roc": {
+      "backdoor": 0.9999945104556518,
+      "ddos": 0.9988817948650841,
+      "dos": 0.999355923996964,
+      "injection": 0.9906503114449474,
+      "mitm": 0.9994251537935749,
+      "normal": 0.9999999689527771,
+      "password": 0.9933333605956711,
+      "ransomware": 0.9999945104556519,
+      "scanning": 0.9994472768195974,
+      "xss": 0.9999972715852287
+    },
+    "auc_pr": {
+      "backdoor": 0.9999481165398953,
+      "ddos": 0.9921455038218191,
+      "dos": 0.9951538727484277,
+      "injection": 0.924950598684155,
+      "mitm": 0.9262664409792234,
+      "normal": 0.9999999000999,
+      "password": 0.9393089894094864,
+      "ransomware": 0.9999476795563804,
+      "scanning": 0.9971052634351193,
+      "xss": 0.9999740273492945
+    },
+    "mean_auc_roc": 0.998108008296515,
+    "mean_auc_pr": 0.9774800392623699
+  },
+  "thresholds": {
+    "0": 0.5538994669914246,
+    "1": 0.2671445906162262,
+    "2": 0.29257261753082275,
+    "3": 0.4220290780067444,
+    "4": 0.6407169699668884,
+    "5": 0.06801480799913406,
+    "6": 0.3174839913845062,
+    "7": 0.5007347464561462,
+    "8": 0.41127586364746094,
+    "9": 0.5214653611183167
+  }
+}

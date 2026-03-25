@@ -1,0 +1,119 @@
+{
+  "config": {
+    "random_seed": 42,
+    "hidden_channels": 128,
+    "num_heads": 4,
+    "num_layers": 2,
+    "epochs": 300,
+    "patience": 50,
+    "learning_rate": 0.0005,
+    "dropout": 0.2,
+    "batch_size": 10000,
+    "use_curriculum": true,
+    "curriculum_stages": [
+      50,
+      150
+    ],
+    "use_adaptive_threshold": true,
+    "use_class_specific_gamma": true,
+    "base_focal_gamma": 4.0,
+    "easy_classes": [
+      "normal",
+      "xss",
+      "dos",
+      "scanning",
+      "ddos",
+      "backdoor"
+    ],
+    "medium_classes": [
+      "ransomware",
+      "password",
+      "injection"
+    ],
+    "hard_classes": [
+      "mitm"
+    ],
+    "class_specific_boost": {
+      "injection": 2.2,
+      "password": 2.5,
+      "mitm": 1.0
+    },
+    "class_gamma": {
+      "injection": 3.2,
+      "mitm": 3.0,
+      "password": 4.5
+    },
+    "threshold_strategy": {
+      "mitm": {
+        "target": "precision",
+        "min_recall": 0.95
+      },
+      "injection": {
+        "target": "f1",
+        "min_precision": 0.65
+      },
+      "password": {
+        "target": "recall",
+        "min_precision": 0.7
+      },
+      "default": {
+        "target": "f1"
+      }
+    },
+    "use_data_augmentation": true,
+    "augment_factor": {
+      "password": 2,
+      "injection": 1,
+      "mitm": 1,
+      "default": 1
+    },
+    "minority_threshold": 5000,
+    "data_path": "D:/01Thesis/04\u4ee3\u7801\u5b9e\u73b0/project/data/train_test_network.csv",
+    "output_dir": "./outputs",
+    "timestamp": "20260314_162212",
+    "run_dir": "./outputs\\run_20260314_162212"
+  },
+  "metrics": {
+    "accuracy": 0.9584685730531404,
+    "macro_f1": 0.937944985320458,
+    "weighted_f1": 0.9590474659427465,
+    "mean_auc_roc": 0.9983115281224398,
+    "mean_auc_pr": 0.9800213100659214,
+    "auc_roc_per_class": {
+      "backdoor": 0.99999667617577,
+      "ddos": 0.9990174173624016,
+      "dos": 0.9994107605537962,
+      "injection": 0.9914874702295271,
+      "mitm": 0.9995781499202552,
+      "normal": 0.9999999999999999,
+      "password": 0.9941045892329032,
+      "ransomware": 0.999996663089848,
+      "scanning": 0.9995268523122824,
+      "xss": 0.9999967023476145
+    },
+    "auc_pr_per_class": {
+      "backdoor": 0.999969709793197,
+      "ddos": 0.9932258513491583,
+      "dos": 0.9955625062324979,
+      "injection": 0.9304641690288794,
+      "mitm": 0.9374653100779275,
+      "normal": 1.0,
+      "password": 0.9461962813253305,
+      "ransomware": 0.9999673603369965,
+      "scanning": 0.9973932547812423,
+      "xss": 0.999968657733983
+    }
+  },
+  "thresholds": {
+    "0": 0.6479216814041138,
+    "1": 0.288875937461853,
+    "2": 0.2716328799724579,
+    "3": 0.4570959210395813,
+    "4": 0.6878781318664551,
+    "5": 0.0619884692132473,
+    "6": 0.32524746656417847,
+    "7": 0.35183006525039673,
+    "8": 0.3867265284061432,
+    "9": 0.5882257223129272
+  }
+}

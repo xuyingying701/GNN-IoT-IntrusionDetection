@@ -1,0 +1,102 @@
+{
+  "config": {
+    "random_seed": "42",
+    "n_estimators": "200",
+    "max_depth": "30",
+    "min_samples_split": "5",
+    "min_samples_leaf": "2",
+    "max_features": "sqrt",
+    "use_class_weight": "True",
+    "class_specific_boost": "{'injection': 2.2, 'password': 2.5, 'mitm': 1.5}",
+    "data_path": "D:/01Thesis/04\u4ee3\u7801\u5b9e\u73b0/project/data/train_test_network.csv",
+    "output_dir": "./rf_outputs",
+    "timestamp": "20260316_095900",
+    "run_dir": "./rf_outputs\\rf_run_20260316_095900"
+  },
+  "metrics": {
+    "macro_f1": 0.9610702180721329,
+    "micro_f1": 0.9881778767561421,
+    "weighted_f1": 0.9886400405280672,
+    "accuracy": 0.9881778767561421,
+    "per_class": {
+      "backdoor": {
+        "precision": 1.0,
+        "recall": 0.9995,
+        "f1": 0.9997499374843711
+      },
+      "ddos": {
+        "precision": 0.9901215805471124,
+        "recall": 0.97725,
+        "f1": 0.9836436839456466
+      },
+      "dos": {
+        "precision": 0.9943963321446765,
+        "recall": 0.976,
+        "f1": 0.9851122886701993
+      },
+      "injection": {
+        "precision": 0.9629995066600888,
+        "recall": 0.976,
+        "f1": 0.9694561708467841
+      },
+      "mitm": {
+        "precision": 0.5714285714285714,
+        "recall": 0.9569377990430622,
+        "f1": 0.7155635062611806
+      },
+      "normal": {
+        "precision": 0.9999,
+        "recall": 0.9999,
+        "f1": 0.9999
+      },
+      "password": {
+        "precision": 0.9979736575481256,
+        "recall": 0.985,
+        "f1": 0.9914443885254153
+      },
+      "ransomware": {
+        "precision": 1.0,
+        "recall": 0.99975,
+        "f1": 0.9998749843730466
+      },
+      "scanning": {
+        "precision": 0.9885057471264368,
+        "recall": 0.989,
+        "f1": 0.9887528117970508
+      },
+      "xss": {
+        "precision": 0.9791666666666666,
+        "recall": 0.97525,
+        "f1": 0.9772044088176353
+      }
+    },
+    "auc_roc": {
+      "backdoor": 0.9999999280274281,
+      "ddos": 0.9992437678295689,
+      "dos": 0.9998661800884608,
+      "injection": 0.9989732850899001,
+      "mitm": 0.9987326270221007,
+      "normal": 0.9999999751622217,
+      "password": 0.9998145659399618,
+      "ransomware": 0.9999999934570388,
+      "scanning": 0.9989194954068412,
+      "xss": 0.9997577370514801
+    },
+    "auc_pr": {
+      "backdoor": 0.9999993137940258,
+      "ddos": 0.9962166249799461,
+      "dos": 0.9989194761317213,
+      "injection": 0.9954442784290574,
+      "mitm": 0.7796721561391574,
+      "normal": 0.9999999200349783,
+      "password": 0.9991891044653006,
+      "ransomware": 0.9999999375156211,
+      "scanning": 0.9978355408868357,
+      "xss": 0.9976813910103928
+    },
+    "mean_auc_roc": 0.9995307555075001,
+    "mean_auc_pr": 0.9764957743387036
+  },
+  "training_time": 3.664243698120117,
+  "inference_time": 0.43994832038879395
+}
