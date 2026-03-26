@@ -56,8 +56,8 @@ class Config:
     })          #为不同攻击类型自动调整分类阈值，提升整体检测效果
 
     #数据路径
-    data_path: str = "D:\\01Thesis\\04代码实现\\project\\data\\train_test_network.csv"
-    output_dir: str = "D:\\01Thesis\\04代码实现\\project\\results"
+    data_path: str = "D:\\01Thesis\\04Git_project\\data\\train_test_network.csv"
+    output_dir: str = "D:\\01Thesis\\04Git_project\\results"
 
     def __post_init__(self):
         """创建实验专用的输出目录"""

@@ -36,7 +36,7 @@ def run_optimized_training(config: Config):
 
     #加载和预处理数据
     df = processor.load_data()
-    df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df)
+    df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df)#预处理后的完整数据，包含所有边的原始特征和标签；训练集边在原始数据中的行号索引；验证集边在原始数据中的行号索引；测试集边在原始数据中的行号索引；攻击类型ID到名称的映射字典；用于模型训练的特征列名列表
     #构建图
     data = builder.build(df, train_idx, val_idx, test_idx, feature_cols)
 
@@ -141,7 +141,7 @@ def run_optimized_training(config: Config):
     # 最终评估
     print("\n[4/4] 最终测试集评估...")
     val_loader = EdgeBatchLoader(data, config, shuffle=False)       #验证集数据加载器,不打乱顺序
-    test_preds, test_labels, test_probs = trainer.evaluate(val_loader, 'test')          #测试集的预测结果（模型猜的攻击类型ID），测试集的真实标签（正确答案的攻击类型ID），测试集的预测概率（每个类别的概率值）
+    test_preds, test_labels, test_probs = trainer.evaluate(val_loader, 'test')    #测试集的预测结果（模型猜的攻击类型ID），测试集的真实标签（正确答案的攻击类型ID），测试集的预测概率（每个类别的概率值）
 
     if test_preds is not None:
         y_true = test_labels.numpy()        #将测试集的 真实标签 从PyTorch张量转换为NumPy数组，用于sklearn指标计算
@@ -156,11 +156,11 @@ def run_optimized_training(config: Config):
         else:
             y_pred_optimized = y_pred_base          #直接用原始预测结果
 
-        # 计算所有指标
+        #计算所有指标
         metrics = MetricsCalculator.calculate_all(
-            y_true, y_pred_optimized, y_prob, attack_names)
+            y_true, y_pred_optimized, y_prob, attack_names)                       #真实标签，预测结果，预测概率，攻击类型ID到名称的映射字典
 
-        # 打印结果
+        #打印结果
         print("\n" + "=" * 70)
         print(f"🏆 最终 Macro-F1: {metrics['macro_f1']:.4f}")
         print(f"📊 Accuracy: {metrics['accuracy']:.4f}")
@@ -168,13 +168,13 @@ def run_optimized_training(config: Config):
         print(f"📉 Mean AUC-PR: {metrics.get('mean_auc_pr', 0):.4f}")
         print(f"❌ 宏平均误报率 (Macro-FPR): {metrics.get('macro_fpr', 0):.4f}")
         print(f"⚠️ 宏平均漏报率 (Macro-FNR): {metrics.get('macro_fnr', 0):.4f}")
-        print(f"⚖️  加权误报率: {metrics['weighted_fpr']:.4f}")
-        print(f"⚖️  加权漏报率: {metrics['weighted_fnr']:.4f}")
+        print(f"⚖️ 加权误报率: {metrics['weighted_fpr']:.4f}")
+        print(f"⚖️ 加权漏报率: {metrics['weighted_fnr']:.4f}")
         print("=" * 70)
 
         # 分类报告
-        unique_labels = sorted(list(set(y_true) | set(y_pred_optimized)))
-        target_names = [attack_names.get(i, f'Class_{i}') for i in unique_labels]
+        unique_labels = sorted(list(set(y_true) | set(y_pred_optimized)))           #获取真实标签和预测标签中出现的所有类别（去重后排序）
+        target_names = [attack_names.get(i, f'Class_{i}') for i in unique_labels]   #为每个类别ID获取对应的中文名称，如果找不到则用默认名称
         print("\n分类报告:")
         print(classification_report(y_true, y_pred_optimized, labels=unique_labels,
                                     target_names=target_names, digits=4))
@@ -209,54 +209,55 @@ def run_optimized_training(config: Config):
 def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     """绘制结果"""
     # 混淆矩阵
-    plt.figure(figsize=(14, 6))
+    plt.figure(figsize=(14, 6))             #创建14x6英寸的图形窗口
 
-    plt.subplot(1, 2, 1)
-    cm = confusion_matrix(y_true, y_pred)
+    plt.subplot(1, 2, 1)              #创建1行2列的子图，选中第1个（左图）
+    cm = confusion_matrix(y_true, y_pred)   #计算原始混淆矩阵（整数计数）
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=target_names, yticklabels=target_names)
-    plt.title("Confusion Matrix (Counts)")
-    plt.xlabel("Predicted")
-    plt.ylabel("True")
-    plt.xticks(rotation=45)
+                xticklabels=target_names, yticklabels=target_names)  #绘制热力图，显示整数计数
+    plt.title("Confusion Matrix (Counts)")      #设置左图标题《混淆矩阵（原始计数》
+    plt.xlabel("Predicted")         #设置x轴标签“预测结果”
+    plt.ylabel("True")              #设置y轴标签“真实结果”
+    plt.xticks(rotation=45)         #旋转x轴标签45度，避免文字重叠
 
-    plt.subplot(1, 2, 2)
-    cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    plt.subplot(1, 2, 2)      #选中第2个子图（右图）
+    cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]  #归一化混淆矩阵，每行和为1
     sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues',
-                xticklabels=target_names, yticklabels=target_names)
-    plt.title("Confusion Matrix (Normalized)")
-    plt.xlabel("Predicted")
-    plt.ylabel("True")
-    plt.xticks(rotation=45)
+                xticklabels=target_names, yticklabels=target_names)     #绘制热力图，显示百分比
+    plt.title("Confusion Matrix (Normalized)")  # 设置右图标题《归一化混淆矩阵》
+    plt.xlabel("Predicted")         #设置x轴标签
+    plt.ylabel("True")              #设置y轴标签
+    plt.xticks(rotation=45)         #旋转x轴标签45度
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), dpi=150, bbox_inches='tight')
-    plt.close()
+    plt.tight_layout()              #自动调整子图间距，避免重叠
+    plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), dpi=150, bbox_inches='tight')  #保存图片，分辨率150dpi
+    plt.close()                     #关闭图形，释放内存
 
-    # 训练曲线
-    if trainer.train_losses:
-        plt.figure(figsize=(12, 4))
+    #训练曲线
+    if trainer.train_losses:         #检查训练损失列表是否有数据，确保有内容可绘图
+        plt.figure(figsize=(12, 4))  #创建12x4英寸的图形窗口（宽12，高4，适合左右两个子图）
 
-        plt.subplot(1, 2, 1)
-        plt.plot(trainer.train_losses)
-        plt.title('Training Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.grid(True)
+        plt.subplot(1, 2, 1)        #创建1行2列的子图布局，选中第1个（左图）
+        plt.plot(trainer.train_losses)    #绘制训练损失曲线，x轴为epoch，y轴为loss值
+        plt.title('Training Loss')        #设置左图标题为"训练损失"
+        plt.xlabel('Epoch')               #设置x轴标签为"训练轮次"
+        plt.ylabel('Loss')                #设置y轴标签为"损失值"
+        plt.grid(True)                    #显示网格线，便于观察损失下降趋势
 
-        plt.subplot(1, 2, 2)
-        epochs = range(0, len(trainer.val_f1s) * 5, 5)
-        plt.plot(epochs, trainer.val_f1s, label='Val F1')
-        plt.plot(epochs, trainer.test_f1s, label='Test F1')
-        plt.title('F1 Score')
-        plt.xlabel('Epoch')
-        plt.ylabel('Macro-F1')
-        plt.legend()
-        plt.grid(True)
+        plt.subplot(1, 2, 2)  #选中第2个子图（右图）
+        epochs = range(0, len(trainer.val_f1s) * 5, 5)              #计算验证集F1对应的epoch序号（每5个epoch记录一次）
+        plt.plot(epochs, trainer.val_f1s, label='Val F1')     #绘制验证集F1曲线，标签为'Val F1'  验证集 F1 分数
+        plt.plot(epochs, trainer.test_f1s, label='Test F1')   #绘制测试集F1曲线，标签为'Test F1'
+        plt.title('F1 Score')       #设置右图标题为"F1分数"
+        plt.xlabel('Epoch')         #设置x轴标签为"训练轮次"
+        plt.ylabel('Macro-F1')      #设置y轴标签为"宏平均F1分数"
+        plt.legend()                #显示图例，区分Val F1和Test F1两条曲线
+        plt.grid(True)              #显示网格线，便于观察F1变化趋势
 
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, 'training_curves.png'), dpi=150, bbox_inches='tight')
-        plt.close()
+        plt.tight_layout()          #自动调整子图间距，避免标题和标签重叠
+        plt.savefig(os.path.join(save_dir, 'training_curves.png'), dpi=150,
+                    bbox_inches='tight')                 #保存图片到指定目录，分辨率150dpi，tight模式确保图片完整包含所有元素
+        plt.close()                 #关闭图形窗口，释放内存
 
 def parse_args():
     """解析命令行参数"""
@@ -265,7 +266,7 @@ def parse_args():
     parser.add_argument('--hidden_channels', type=int, default=128, help='Hidden channels')
     parser.add_argument('--epochs', type=int, default=300, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=10000, help='Batch size')
-    parser.add_argument('--output_dir', type=str, default='D:/01Thesis/04代码实现\project/results', help='Output directory')
+    parser.add_argument('--output_dir', type=str, default='D:\\01Thesis\\04Git_project\\results', help='Output directory')
     return parser.parse_args()
 
 # ================= 主程序入口 =================
