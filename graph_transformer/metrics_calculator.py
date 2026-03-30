@@ -31,7 +31,7 @@ class MetricsCalculator:
         #计算混淆矩阵，labels指定所有类别的顺序，确保矩阵的维度与类别数一致
         cm = confusion_matrix(y_true, y_pred, labels=unique_labels)
 
-        # ===== 修复：计算多分类宏平均FPR/FNR =====
+        # =====计算多分类宏平均FPR/FNR =====
         fpr_list = []               #每个类别的误报率（False Positive Rate）列表
         fnr_list = []               #每个类别的漏报率（False Negative Rate）列表
         per_class_metrics = {}      #每个类别的详细性能指标的字典

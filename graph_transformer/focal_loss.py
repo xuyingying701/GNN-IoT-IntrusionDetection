@@ -24,7 +24,7 @@ class FocalLoss(torch.nn.Module):
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         #标签平滑
         n_classes = input.size(1)                   #获取类别数量（攻击类型数，比如10）  [10000,10]
-        log_probs = F.log_softmax(input, dim=1)     #将原始分数转换为对数概率（log概率）  [10000,10]
+        log_probs = F.log_softmax(input, dim=1)     #将原始分数转换为对数概率（log概率） [10000,10]
 
         #创建平滑标签 [10000,10]
         with torch.no_grad():                       #在这个代码块内，不计算梯度（这些操作不需要反向传播）

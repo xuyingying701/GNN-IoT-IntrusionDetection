@@ -15,7 +15,6 @@ import argparse
 from config import Config
 from data_processor import DataProcessor
 from graph_builder import GraphBuilder
-from maf import MAF
 from graph_transformer import GraphTransformer
 from focal_loss import FocalLoss
 from trainer import Trainer
@@ -36,7 +35,8 @@ def run_optimized_training(config: Config):
 
     #加载和预处理数据
     df = processor.load_data()
-    df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df)#预处理后的完整数据，包含所有边的原始特征和标签；训练集边在原始数据中的行号索引；验证集边在原始数据中的行号索引；测试集边在原始数据中的行号索引；攻击类型ID到名称的映射字典；用于模型训练的特征列名列表
+    #所有边的原始特征和标签；训练集边在原始数据中的行号索引；验证集边在原始数据中的行号索引；测试集边在原始数据中的行号索引；攻击类型ID到名称的映射字典；用于模型训练的特征列名列表
+    df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df) #预处理后的完整数据
     #构建图
     data = builder.build(df, train_idx, val_idx, test_idx, feature_cols)
 
@@ -100,7 +100,7 @@ def run_optimized_training(config: Config):
 
     #损失函数criterion          根据配置选择是否使用标签平滑
     if config.use_label_smoothing:  #如果配置里开启了标签平滑(模型不会太自信，泛化能力更强)
-        #使用带标签平滑的 Focal Loss
+        #使用带标签平滑的Focal Loss
         criterion = FocalLoss(
             weight=class_weights,                   #类别权重（处理样本不平衡）
             class_gamma=class_gamma_map,            #各类别的gamma值（处理检测难度）
@@ -108,7 +108,7 @@ def run_optimized_training(config: Config):
             label_smoothing=config.label_smoothing  #标签平滑系数（0.1）
         )
     else:                           #如果没开启标签平滑
-        #使用不带标签平滑的 Focal Loss
+        #使用不带标签平滑的Focal Loss
         criterion = FocalLoss(
             weight=class_weights,
             class_gamma=class_gamma_map,
@@ -138,7 +138,7 @@ def run_optimized_training(config: Config):
     #开始训练模型，并获取训练好的模型和最佳阈值
     model, best_thresholds = trainer.train(data, criterion, optimizer, scheduler)
 
-    # 最终评估
+    #最终评估
     print("\n[4/4] 最终测试集评估...")
     val_loader = EdgeBatchLoader(data, config, shuffle=False)       #验证集数据加载器,不打乱顺序
     test_preds, test_labels, test_probs = trainer.evaluate(val_loader, 'test')    #测试集的预测结果（模型猜的攻击类型ID），测试集的真实标签（正确答案的攻击类型ID），测试集的预测概率（每个类别的概率值）
@@ -172,7 +172,7 @@ def run_optimized_training(config: Config):
         print(f"⚖️ 加权漏报率: {metrics['weighted_fnr']:.4f}")
         print("=" * 70)
 
-        # 分类报告
+        #分类报告
         unique_labels = sorted(list(set(y_true) | set(y_pred_optimized)))           #获取真实标签和预测标签中出现的所有类别（去重后排序）
         target_names = [attack_names.get(i, f'Class_{i}') for i in unique_labels]   #为每个类别ID获取对应的中文名称，如果找不到则用默认名称
         print("\n分类报告:")
@@ -208,7 +208,7 @@ def run_optimized_training(config: Config):
 
 def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     """绘制结果"""
-    # 混淆矩阵
+    #绘制混淆矩阵
     plt.figure(figsize=(14, 6))             #创建14x6英寸的图形窗口
 
     plt.subplot(1, 2, 1)              #创建1行2列的子图，选中第1个（左图）
@@ -233,7 +233,7 @@ def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), dpi=150, bbox_inches='tight')  #保存图片，分辨率150dpi
     plt.close()                     #关闭图形，释放内存
 
-    #训练曲线
+    #绘制训练曲线
     if trainer.train_losses:         #检查训练损失列表是否有数据，确保有内容可绘图
         plt.figure(figsize=(12, 4))  #创建12x4英寸的图形窗口（宽12，高4，适合左右两个子图）
 
@@ -271,6 +271,7 @@ def parse_args():
 
 # ================= 主程序入口 =================
 if __name__ == "__main__":
+    #解析命令行参数，并将结果存储到 args 变量中
     args = parse_args()
 
     #创建优化版配置
@@ -292,10 +293,9 @@ if __name__ == "__main__":
     if args.output_dir:
         config.output_dir = args.output_dir
 
-    # 重新初始化运行目录
+    #创建实验专用的输出目录
     config.__post_init__()
-
-    # 保存配置
+    #保存配置
     config.save()
 
     print("=" * 70)
@@ -311,7 +311,7 @@ if __name__ == "__main__":
 
     try:
         t0 = time.time()
-        final_f1 = run_optimized_training(config)
+        final_f1 = run_optimized_training(config)   #调用优化训练函数，传入配置对象，开始训练并返回最终测试集的宏平均F1分数
         duration = (time.time() - t0) / 60
 
         print("\n" + "=" * 70)

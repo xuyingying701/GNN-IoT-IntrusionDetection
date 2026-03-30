@@ -18,7 +18,7 @@ class AdaptiveThresholdOptimizer:
         self.class_stats: Dict[int, Dict[str, float]] = {}  #存储每个类别的统计信息（如F1、精确率、召回率等），键是类别ID，值是统计指标字典
 
     def fit(self, y_true: np.ndarray, y_prob: np.ndarray,
-            class_names: Dict[int, str]) -> Dict[int, float]:
+            class_names: Dict[int, str]) -> Dict[int, float]:   #输入真实标签，预测概率，类别名称字典，输出各类别的最优阈值字典
         """基于验证集找到最优阈值"""
         print("\n🔍 计算自适应阈值...")
 
@@ -57,7 +57,7 @@ class AdaptiveThresholdOptimizer:
         return self.thresholds
 
 
-    def predict(self, probabilities: torch.Tensor) -> torch.Tensor:
+    def predict(self, probabilities: torch.Tensor) -> torch.Tensor: #输入预测概率，输出预测结果张量
         """应用自适应阈值进行预测"""
         #如果没有保存任何阈值，就用默认方法（取概率最大的类别）
         if not self.thresholds:
@@ -95,4 +95,4 @@ class AdaptiveThresholdOptimizer:
                 #如果所有概率都没超过阈值，就退回到默认方法（取最大概率）
                 predictions[i] = probs.argmax()
 
-        return predictions
+        return predictions      #预测结果张量

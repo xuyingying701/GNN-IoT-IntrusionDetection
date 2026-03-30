@@ -19,7 +19,7 @@ class Config:
     num_layers: int = 2     #图神经网络层数
     epochs: int = 300       #最大训练 300 轮
     patience: int = 50      #早停：50 轮不升就停
-    learning_rate: float = 0.0003  # 学习率 3e-4
+    learning_rate: float = 0.0003  #学习率 3e-4
     dropout: float = 0.3    #防止过拟合
     batch_size: int = 10000     #批次大小
     weight_decay: float = 5e-4  #权重衰减，正则化
@@ -49,7 +49,7 @@ class Config:
 
     #配置自适应阈值的优化策略
     threshold_strategy: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
-        'injection': {'target': 'f1'},      #对注入攻击，用F1分数找最佳阈值
+        'injection': {'target': 'f1'},  #对注入攻击，用F1分数找最佳阈值
         'password': {'target': 'f1'},
         'mitm': {'target': 'f1'},
         'default': {'target': 'f1'}     #其他攻击类型，默认也用F1分数
@@ -61,13 +61,13 @@ class Config:
 
     def __post_init__(self):
         """创建实验专用的输出目录"""
-        os.makedirs(self.output_dir, exist_ok=True)
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = os.path.join(self.output_dir, f"graph_transformer_run_{self.timestamp}")
-        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)              #创建输出目录，如果目录已存在则不报错（exist_ok=True）
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")#获取当前时间并格式化为"年月日_时分秒"作为时间戳
+        self.run_dir = os.path.join(self.output_dir, f"graph_transformer_run_{self.timestamp}")#拼接本次运行的完整目录路径
+        os.makedirs(self.run_dir, exist_ok=True)                 #创建本次运行的专属目录，用于保存配置、结果和图表
 
     def save(self):
         """保存配置"""
-        config_path = os.path.join(self.run_dir, 'config.yaml')
-        with open(config_path, 'w') as f:
-            yaml.dump(self.__dict__, f)
+        config_path = os.path.join(self.run_dir, 'config.yaml')  #拼接配置文件完整路径：运行目录 + 文件名
+        with open(config_path, 'w') as f:                        #以写入模式打开配置文件，如果文件不存在则创建，存在则覆盖
+            yaml.dump(self.__dict__, f)                          #将当前对象的所有属性（转换为字典）以YAML格式写入文件

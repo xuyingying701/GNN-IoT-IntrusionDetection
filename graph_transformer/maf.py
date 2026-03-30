@@ -48,7 +48,7 @@ class MAF(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)                #随机丢弃神经元
 
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor,
-                edge_attr: torch.Tensor) -> torch.Tensor:
+                edge_attr: torch.Tensor) -> torch.Tensor:   #输入节点特征，边索引，边特征，返回融合后的节点特征（形状与输入x相同，但特征已被多尺度融合更新)
         #局部结构    [776,128]
         x_short = F.relu(self.short_gcn(x, edge_index))     #1.聚合邻居信息 2.激活函数（负数变0，正数不变）
         x_short = self.dropout(x_short)                     #3.防止过拟合

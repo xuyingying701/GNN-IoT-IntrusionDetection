@@ -56,7 +56,7 @@ class GraphTransformer(torch.nn.Module):
 
     def _init_weights(self):
         """初始化权重"""      #初始化神经网络中所有线性层的参数（让模型从更好的起点开始学习）
-        for module in self.modules():                       # 遍历模型的所有层
+        for module in self.modules():                           #遍历模型的所有层
             if isinstance(module, torch.nn.Linear):             #如果是线性层
                 torch.nn.init.xavier_uniform_(module.weight)    #1.用xavier方法初始化权重
                 if module.bias is not None:                     #2.偏置初始化为0（刚开始没有偏见，公平）
@@ -70,7 +70,7 @@ class GraphTransformer(torch.nn.Module):
         for layer in self.layers:                   #循环遍历每一层 MAF（多头注意力融合层）
             x = layer(x, edge_index, edge_feat)     #通过MAF层，融合了邻居设备后的设备特征   [776,128]
 
-        # 边分类
+        #边分类
         src, dst = edge_index                       #拆解边索引：src = 源节点索引，dst = 目标节点索引  [10000, 128],[10000, 128],[10000, 128]
         edge_out = torch.cat([x[src], x[dst], edge_feat], dim=1)  #x[src]：取出源设备的特征，按第1维（列方向）进行拼接  [10000, 384]
 

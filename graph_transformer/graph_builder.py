@@ -21,25 +21,26 @@ class GraphBuilder:
         """构建图数据 - 修复数据泄露问题"""
         print("\n[2/4] 构建图结构...")
 
-        # 1. 创建节点映射
+        #1. 创建节点映射
         unique_ips = pd.unique(pd.concat([df['src_ip'], df['dst_ip']]))
         self.ip_to_id = {ip: i for i, ip in enumerate(unique_ips)}
         num_nodes = len(unique_ips)
         print(f"   节点数: {num_nodes}")
 
-        # 2. 构建边索引和边特征（全量数据，用于图结构）
-        src_ids = df['src_ip'].map(self.ip_to_id).values.astype(np.int64)
+        #2. 构建边索引和边特征（全量数据，用于图结构）
+        src_ids = df['src_ip'].map(self.ip_to_id).values.astype(np.int64)   #将IP地址列中的所有IP转换为对应的数字节点
         dst_ids = df['dst_ip'].map(self.ip_to_id).values.astype(np.int64)
-        edge_index = torch.tensor([src_ids, dst_ids], dtype=torch.long)
-        edge_attr = torch.tensor(df[feature_cols].values.astype(np.float32), dtype=torch.float)
-        edge_labels = torch.tensor(df['attack_type'].values, dtype=torch.long)
-        num_edges = edge_index.size(1)
+        edge_index = torch.tensor([src_ids, dst_ids], dtype=torch.long)#将源IP和目标IP的节点ID组合成边索引
+        edge_attr = torch.tensor(df[feature_cols].values.astype(np.float32), dtype=torch.float)#将 DataFrame 中的边特征数据转换为 PyTorch 张量
+        edge_labels = torch.tensor(df['attack_type'].values, dtype=torch.long)#提取每条流量的攻击类型标签，[211043, 41]
+        num_edges = edge_index.size(1)             #统计总共有多少条网络连接（边）
         print(f"   边数: {num_edges}")
 
-        # 3. 创建掩码
+        #3. 创建掩码
         train_mask = torch.zeros(num_edges, dtype=torch.bool)
         val_mask = torch.zeros(num_edges, dtype=torch.bool)
         test_mask = torch.zeros(num_edges, dtype=torch.bool)
+        #训练集、验证集、测试集的样本位置标记为 True
         train_mask[train_idx] = True
         val_mask[val_idx] = True
         test_mask[test_idx] = True
@@ -47,32 +48,32 @@ class GraphBuilder:
         # ===== 关键修复：只用训练边构建节点特征 =====
         print("   🛡️ 使用训练边构建节点特征（防止数据泄露）...")
 
-        # 提取训练边
+        #提取训练边
         train_edges_idx = torch.where(train_mask)[0]
         train_edge_index = edge_index[:, train_edges_idx]
         train_edge_attr = edge_attr[train_edges_idx]
 
-        # 只用训练边构建节点特征
+        #只用训练边构建节点特征
         node_attr = self._build_node_features_from_edges(
             train_edge_index, train_edge_attr, num_nodes
         )
 
-        # 获取参与训练的节点（用于标准化）
+        #获取参与训练的节点（用于标准化）
         train_nodes = torch.unique(torch.cat([
             train_edge_index[0], train_edge_index[1]
         ]))
 
-        # 标准化节点特征（只用训练节点）
+        #标准化节点特征（只用训练节点）
         node_attr = self._normalize_features_safe(node_attr, train_nodes)
 
-        # 标准化边特征（只用训练边）
+        #标准化边特征（只用训练边）
         edge_attr = self._normalize_edge_features_safe(edge_attr, train_edges_idx)
 
         print(f"   节点特征维度: {node_attr.size(1)}")
         print(f"   边特征维度: {edge_attr.size(1)}")
         print(f"   训练边数: {len(train_edges_idx)}")
 
-        # 创建图数据对象
+        #创建图数据对象，将节点特征、边索引和边特征封装在一起
         data = Data(x=node_attr, edge_index=edge_index, edge_attr=edge_attr)
         data.y = edge_labels                #边标签
         data.train_mask = train_mask        #训练掩码

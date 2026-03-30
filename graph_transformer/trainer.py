@@ -64,34 +64,36 @@ class Trainer:
         return total_loss / max(num_batches, 1)     #返回一个 epoch 的平均损失
 
     @torch.no_grad()
-    def evaluate(self, loader, mask_type='val'):
+    def evaluate(self, loader, mask_type='val'):    #输入
         """评估 - 原版（Transductive）"""
-        self.model.eval()
-        all_preds = []
-        all_labels = []
-        all_probs = []
 
-        for batch_data in loader:
-            batch_data = batch_data.to(self.device)
+        self.model.eval()   #将模型设置为评估模式（关闭Dropout和BatchNorm的训练行为）
 
-            # 原版：使用全量边（不区分训练/测试）
-            out = self.model(batch_data.x, batch_data.edge_index, batch_data.edge_attr)
-            probs = F.softmax(out, dim=1)
-            preds = out.argmax(dim=1)
+        all_preds = []      #用于存储所有预测结果的列表
+        all_labels = []     #用于存储所有真实标签的列表
+        all_probs = []      #用于存储所有预测概率的列表
 
-            mask = getattr(batch_data, f'{mask_type}_mask', None)
-            if mask is not None and mask.sum() > 0:
-                all_preds.append(preds[mask].cpu())
-                all_labels.append(batch_data.y[mask].cpu())
-                all_probs.append(probs[mask].cpu())
+        for batch_data in loader:  #遍历数据加载器中的每个批次
+            batch_data = batch_data.to(self.device)  #将批次数据移动到指定设备（GPU/CPU）
 
-            del batch_data
+            #原版：使用全量边（不区分训练/测试）
+            out = self.model(batch_data.x, batch_data.edge_index, batch_data.edge_attr)  #模型前向传播，输出原始logits
+            probs = F.softmax(out, dim=1)   #将logits转换为概率分布（每个类别的概率）
+            preds = out.argmax(dim=1)       #取概率最大的类别作为预测结果
 
-        if all_preds:
+            mask = getattr(batch_data, f'{mask_type}_mask', None)  # 获取指定类型的掩码（如val_mask或test_mask），用于筛选需要评估的边
+            if mask is not None and mask.sum() > 0:         #如果掩码存在且包含有效数据（至少有一个True）
+                all_preds.append(preds[mask].cpu())         #将掩码筛选出的预测结果移到CPU并添加到列表
+                all_labels.append(batch_data.y[mask].cpu()) #将掩码筛选出的真实标签移到CPU并添加到列表
+                all_probs.append(probs[mask].cpu())         #将掩码筛选出的预测概率移到CPU并添加到列表
+
+            del batch_data              #删除批次数据，释放内存
+
+        if all_preds:  #如果列表不为空（有有效数据），将列表中的所有预测结果拼接成一个张量，并返回
             return (torch.cat(all_preds), torch.cat(all_labels), torch.cat(all_probs))
-        return None, None, None
+        return None, None, None         #如果没有有效数据，返回None
 
-    def train(self, data: Data, criterion, optimizer, scheduler):
+    def train(self, data: Data, criterion, optimizer, scheduler):       #输入PyG Data对象、损失函数、优化器、学习率调度器，输出训练好的模型、最优阈值字典
         """主训练循环"""
         print(f"\n[3/4] 开始训练...")
 
