@@ -16,9 +16,9 @@ class DataProcessor:
 
     def __init__(self, config: Config):
         self.config = config                #保存配置对象（包含所有参数设置）
-        self.label_encoders = {}            #存储所有类别特征的编码器（字典，键是列名）
-        self.scaler = StandardScaler()      #标准化器，用于数值特征的标准化（均值0，方差1）
-        self.attack_encoder = LabelEncoder()#攻击类型的编码器，将攻击名称转为数字
+        self.label_encoders = {}            #存储所有类别特征的编码器（如协议类型、服务类型等文本字段转数字）
+        self.scaler = StandardScaler()      #标准化器，用于数值特征的标准化（均值为0，方差为1）
+        self.attack_encoder = LabelEncoder()#攻击类型的编码器（将攻击名称如"injection"转为数字ID）
 
     def load_data(self) -> pd.DataFrame:#函数返回一个 pandas DataFrame 对象
         """加载数据"""
@@ -31,10 +31,10 @@ class DataProcessor:
         return df
 
     def preprocess(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, np.ndarray,np.ndarray, np.ndarray,Dict[int, str], List[str]]:
-        """完整的预处理流程"""
+        """完整的数据预处理流水线"""
         target_col = 'type' if 'type' in df.columns else 'label'    #确定目标列名（可能是'type'或'label'）
 
-        # 划分数据集
+        #1.数据集划分
         indices = np.arange(len(df))    #创建索引数组[0,1,2,...,n-1]（所有数据的行号）
         temp_target = df[target_col].astype(str)    #将目标列转为字符串，用于分层抽样
 
@@ -52,26 +52,26 @@ class DataProcessor:
         val_df = df.iloc[val_idx].copy()        #提取验证集数据
         test_df = df.iloc[test_idx].copy()      #提取测试集数据
 
-        #从数据集中筛选出用于模型训练的特征列
+        #2.特征列筛选
         exclude_cols = ['src_ip', 'dst_ip', target_col]
         feature_cols = [c for c in df.columns if c not in exclude_cols]
 
-        #将feature_cols中的文本类别特征（如协议类型、标志位等）转换为数字
+        #3.类别特征编码   将feature_cols中的文本类别特征（如协议类型、标志位等）转换为数字
         train_df, val_df, test_df = self._encode_categorical_features(
             train_df, val_df, test_df, feature_cols)
 
-        #数值型特征进行标准化处理
+        #4.数值型特征标准化
         train_df, val_df, test_df = self._standardize_numeric_features(
             train_df, val_df, test_df, feature_cols)
 
-        #将目标列（攻击类型）从文本转换为数字标签，并返回转换后的数据集和类别名称映射
+        #5.目标列（攻击类型）编码，返回转换后的数字ID和类别名称映射
         train_df, val_df, test_df, attack_names = self._encode_target(
             train_df, val_df, test_df, target_col)      #返回的映射字典attack_names
 
-        #合并数据集，并添加一列标记每条数据属于哪个集合，eg:train_df['_split'] = 'train'..
+        #6.合并数据集，并创建掩码
         final_df = self._merge_datasets(train_df, val_df, test_df)
 
-        #创建布尔掩码（Boolean Mask），用于标记哪些数据属于训练集、验证集和测试集
+        #7.创建布尔掩码（Boolean Mask），用于标记哪些数据属于训练集、验证集和测试集
         train_mask = (final_df['_split'] == 'train').values
         val_mask = (final_df['_split'] == 'val').values
         test_mask = (final_df['_split'] == 'test').values   #三个布尔数组
@@ -81,7 +81,7 @@ class DataProcessor:
         val_idx = np.where(val_mask)[0]
         test_idx = np.where(test_mask)[0]
 
-        #打印训练集中每个攻击类型的样本数量分布
+        #8.打印训练集中每个攻击类型的样本数量分布
         self._print_class_distribution(final_df[train_mask], attack_names)
 
         return final_df, train_idx, val_idx, test_idx, attack_names, feature_cols

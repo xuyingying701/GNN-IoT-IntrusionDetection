@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore')
 os.environ['PYTHONHASHSEED'] = str(42)
 
 # ================= 主训练流程 ===================
-def run_optimized_training(config: Config):
+def run_training(config: Config):
     """主训练函数"""
 
     #初始化组件
@@ -44,12 +44,12 @@ def run_optimized_training(config: Config):
     del df
     gc.collect()
 
-    #计算类别权重（使用平滑权重）
-    y_train = data.y[data.train_mask].numpy()       #提取训练集的标签
+    #计算类别权重（使用平滑权重）-> 处理类别不平衡问题，为少数类（攻击类型）分配更高权重
+    y_train = data.y[data.train_mask].numpy()   #提取训练集的标签
     present_classes = np.unique(y_train)        #找出训练集中出现的所有类别
     class_weights_dict = compute_class_weight('balanced', classes=present_classes, y=y_train)       #自动平衡权重，让少数类获得更高权重,返回一个字典或数组，每个类别对应一个权重
 
-    # 将计算出的类别权重进行平滑处理
+    #将计算出的类别权重进行平滑处理
     full_class_weights = np.ones(len(attack_names), dtype=np.float32)
     for i, cls in enumerate(present_classes):
         full_class_weights[cls] = class_weights_dict[i] ** 0.7  # 平滑权重
@@ -59,7 +59,7 @@ def run_optimized_training(config: Config):
     #类别ID到gamma值的映射表
     class_gamma_map = {}
 
-    #对特定攻击类别的权重进行额外增强,让模型更加关注这些攻击类型
+    #对特定攻击类别（injection，password，mitm）的权重进行额外增强,让模型更加关注这些攻击类型
     for class_name, boost in config.class_specific_boost.items():
         if class_name in attack_name_to_id:
             class_id = attack_name_to_id[class_name]
@@ -85,7 +85,7 @@ def run_optimized_training(config: Config):
     data = data.to(device)
     class_weights = class_weights.to(device)
 
-    #创建一个图Transformer模型
+    #初始化图Transformer模型
     model = GraphTransformer(
         data.x.size(1),             #节点特征维度
         data.edge_attr.size(1),     #边特征维度
@@ -98,7 +98,7 @@ def run_optimized_training(config: Config):
 
     print(f"\n🤖 模型参数量: {sum(p.numel() for p in model.parameters()):,}")     #sum(p.numel() for p in model.parameters()):,
 
-    #损失函数criterion          根据配置选择是否使用标签平滑
+    #初始化损失函数criterion          根据配置选择是否使用标签平滑
     if config.use_label_smoothing:  #如果配置里开启了标签平滑(模型不会太自信，泛化能力更强)
         #使用带标签平滑的Focal Loss
         criterion = FocalLoss(
@@ -113,26 +113,24 @@ def run_optimized_training(config: Config):
             weight=class_weights,
             class_gamma=class_gamma_map,
             default_gamma=config.base_focal_gamma,
-            label_smoothing=0.0                     # 平滑系数为0，等于不使用
+            label_smoothing=0.0                     #平滑系数为0，等于不使用
         )
 
-    #创建一个 AdamW 优化器(用来更新模型的参数)
-    optimizer = torch.optim.AdamW(
+    #配置模型训练参数更新策略
+    optimizer = torch.optim.AdamW(      #创建一个 AdamW 优化器(用来更新模型的参数)
         model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay
+        lr=config.learning_rate,        #学习率
+        weight_decay=config.weight_decay#权重衰减
     )
-
-    #创建一个学习率调度器，当模型性能不再提升时，自动降低学习率
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau( #创建一个学习率调度器，当模型性能不再提升时，自动降低学习率
         optimizer,      #要调整哪个优化器
-        mode='max',     #监控什么（'max'=越大越好，比如准确率）
-        factor=0.5,     #学习率降低多少（乘以0.5，减半）
-        patience=10,    #等多少轮没提升才降低
+        mode='max',     #监控验证集F1（越大越好）
+        factor=0.5,     #学习率减半
+        patience=10,    #10轮不提升就降低学习率
         verbose=True    #打印提示信息
     )
 
-    #创建一个训练器对象
+    #初始化训练器，管理训练状态
     trainer = Trainer(model, config, attack_names, device)
 
     #开始训练模型，并获取训练好的模型和最佳阈值
@@ -143,12 +141,12 @@ def run_optimized_training(config: Config):
     val_loader = EdgeBatchLoader(data, config, shuffle=False)       #验证集数据加载器,不打乱顺序
     test_preds, test_labels, test_probs = trainer.evaluate(val_loader, 'test')    #测试集的预测结果（模型猜的攻击类型ID），测试集的真实标签（正确答案的攻击类型ID），测试集的预测概率（每个类别的概率值）
 
-    if test_preds is not None:
+    if test_preds is not None:              #转换为numpy
         y_true = test_labels.numpy()        #将测试集的 真实标签 从PyTorch张量转换为NumPy数组，用于sklearn指标计算
         y_pred_base = test_preds.numpy()    #将测试集的 预测标签 从PyTorch张量转换为NumPy数组，用于sklearn指标计算
         y_prob = test_probs.numpy()         #将测试集的 预测概率 从PyTorch张量转换为NumPy数组，用于AUC、PR曲线等计算
 
-        #应用自适应阈值
+        #应用自适应阈值进行预测
         if config.use_adaptive_threshold and best_thresholds is not None:                   #如果配置开启了自适应阈值，并且训练时已经计算好了最佳阈值
             threshold_optimizer = AdaptiveThresholdOptimizer(config.threshold_strategy)     #创建自适应阈值优化器
             threshold_optimizer.thresholds = best_thresholds                                #加载训练时保存的最佳阈值（每个类别一个阈值）
@@ -156,7 +154,7 @@ def run_optimized_training(config: Config):
         else:
             y_pred_optimized = y_pred_base          #直接用原始预测结果
 
-        #计算所有指标
+        #计算全面的评估指标
         metrics = MetricsCalculator.calculate_all(
             y_true, y_pred_optimized, y_prob, attack_names)                       #真实标签，预测结果，预测概率，攻击类型ID到名称的映射字典
 
@@ -179,7 +177,7 @@ def run_optimized_training(config: Config):
         print(classification_report(y_true, y_pred_optimized, labels=unique_labels,
                                     target_names=target_names, digits=4))
 
-        # 保存结果
+        #保存结果
         results = {
             'config': {k: str(v) if isinstance(v, (type, torch.device)) else v
                        for k, v in config.__dict__.items()},
@@ -208,9 +206,10 @@ def run_optimized_training(config: Config):
 
 def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     """绘制结果"""
-    #绘制混淆矩阵
+    #1.绘制混淆矩阵
     plt.figure(figsize=(14, 6))             #创建14x6英寸的图形窗口
 
+    #左图：原始计数（Counts）
     plt.subplot(1, 2, 1)              #创建1行2列的子图，选中第1个（左图）
     cm = confusion_matrix(y_true, y_pred)   #计算原始混淆矩阵（整数计数）
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -220,6 +219,7 @@ def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     plt.ylabel("True")              #设置y轴标签“真实结果”
     plt.xticks(rotation=45)         #旋转x轴标签45度，避免文字重叠
 
+    #右图：归一化（Normalized，每行和为1）
     plt.subplot(1, 2, 2)      #选中第2个子图（右图）
     cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]  #归一化混淆矩阵，每行和为1
     sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues',
@@ -233,10 +233,11 @@ def plot_results(y_true, y_pred, target_names, trainer, save_dir):
     plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), dpi=150, bbox_inches='tight')  #保存图片，分辨率150dpi
     plt.close()                     #关闭图形，释放内存
 
-    #绘制训练曲线
+    #2.绘制训练曲线
     if trainer.train_losses:         #检查训练损失列表是否有数据，确保有内容可绘图
         plt.figure(figsize=(12, 4))  #创建12x4英寸的图形窗口（宽12，高4，适合左右两个子图）
 
+        #左图：训练损失随epoch变化
         plt.subplot(1, 2, 1)        #创建1行2列的子图布局，选中第1个（左图）
         plt.plot(trainer.train_losses)    #绘制训练损失曲线，x轴为epoch，y轴为loss值
         plt.title('Training Loss')        #设置左图标题为"训练损失"
@@ -244,6 +245,7 @@ def plot_results(y_true, y_pred, target_names, trainer, save_dir):
         plt.ylabel('Loss')                #设置y轴标签为"损失值"
         plt.grid(True)                    #显示网格线，便于观察损失下降趋势
 
+        #右图：验证F1和测试F1随epoch变化
         plt.subplot(1, 2, 2)  #选中第2个子图（右图）
         epochs = range(0, len(trainer.val_f1s) * 5, 5)              #计算验证集F1对应的epoch序号（每5个epoch记录一次）
         plt.plot(epochs, trainer.val_f1s, label='Val F1')     #绘制验证集F1曲线，标签为'Val F1'  验证集 F1 分数
@@ -271,10 +273,10 @@ def parse_args():
 
 # ================= 主程序入口 =================
 if __name__ == "__main__":
-    #解析命令行参数，并将结果存储到 args 变量中
+    #解析用户从命令行传入的参数
     args = parse_args()
 
-    #创建优化版配置
+    #定义所有超参数和实验配置
     config = Config()
 
     #覆盖其他配置
@@ -311,7 +313,7 @@ if __name__ == "__main__":
 
     try:
         t0 = time.time()
-        final_f1 = run_optimized_training(config)   #调用优化训练函数，传入配置对象，开始训练并返回最终测试集的宏平均F1分数
+        final_f1 = run_training(config)   #核心训练流程的 orchestrator（编排器），协调所有组件
         duration = (time.time() - t0) / 60
 
         print("\n" + "=" * 70)

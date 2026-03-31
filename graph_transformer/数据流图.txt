@@ -1,0 +1,36 @@
+原始CSV数据 (211043条, 43列)
+    ↓ DataProcessor.load_data()
+DataFrame
+    ↓ DataProcessor.preprocess()
+    - 划分: 60%训练 / 20%验证 / 20%测试
+    - 编码: 类别特征→数字, 攻击类型→ID
+    - 标准化: 数值特征归一化
+    ↓
+final_df + 索引 + attack_names映射
+    ↓ GraphBuilder.build()
+    - 创建776个节点(IP)
+    - 构建211043条边
+    - ⚠️ 只用训练边构建节点特征（防泄露）
+    - 标准化节点/边特征
+    ↓
+PyG Data对象 (x, edge_index, edge_attr, y, masks)
+    ↓ Trainer.train()
+    ↓ EdgeBatchLoader (batch_size=10000)
+批次化的子图数据
+    ↓ GraphTransformer.forward()
+    - 节点编码: [776,42]→[776,128]
+    - 边编码: [10000,41]→[10000,128]
+    - MAF层×2: 消息传递更新节点特征
+    - 边分类: 拼接源/目标/边特征 → 分类器 → [10000,10]
+    ↓ FocalLoss.forward()
+损失值
+    ↓ 反向传播 + 优化器.step()
+更新后的模型参数
+    ↓ (循环300轮, 早停50轮)
+最佳模型参数 + 自适应阈值
+    ↓ 最终评估
+预测标签 + 概率
+    ↓ MetricsCalculator.calculate_all()
+完整指标报告 (F1, FPR, FNR, AUC等)
+    ↓ 保存 + 绘图
+results.json + confusion_matrix.png + training_curves.png

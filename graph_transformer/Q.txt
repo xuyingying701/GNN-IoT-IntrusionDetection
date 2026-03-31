@@ -1,0 +1,15 @@
+1.自适应阈值的作用是什么？
+2.
+DataProcessor.load_data() 
+    ↓
+DataProcessor.preprocess()
+    ↓
+GraphBuilder.build()
+    ↓
+Trainer.train()
+    ↓
+Trainer.evaluate()
+    ↓
+MetricsCalculator.calculate_all()
+    ↓
+plot_results()

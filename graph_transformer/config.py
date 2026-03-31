@@ -41,11 +41,12 @@ class Config:
         'mitm': 1.2,
     })          #给难分类攻击加大权重
 
+    #不同攻击不同 focal gamma，实现对不同难度攻击的差异化关注
     class_gamma: Dict[str, float] = field(default_factory=lambda: {
         'injection': 2.0,
         'password': 2.5,
         'mitm': 2.0,
-    })#不同攻击不同 focal gamma，实现对不同难度攻击的差异化关注
+    })
 
     #配置自适应阈值的优化策略
     threshold_strategy: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
@@ -64,10 +65,10 @@ class Config:
         os.makedirs(self.output_dir, exist_ok=True)              #创建输出目录，如果目录已存在则不报错（exist_ok=True）
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")#获取当前时间并格式化为"年月日_时分秒"作为时间戳
         self.run_dir = os.path.join(self.output_dir, f"graph_transformer_run_{self.timestamp}")#拼接本次运行的完整目录路径
-        os.makedirs(self.run_dir, exist_ok=True)                 #创建本次运行的专属目录，用于保存配置、结果和图表
+        os.makedirs(self.run_dir, exist_ok=True)                 #创建本次运行的专属目录run_dir，用于保存配置、结果和图表
 
     def save(self):
-        """保存配置"""
+        """将配置保存为YAML文件，便于复现实验"""
         config_path = os.path.join(self.run_dir, 'config.yaml')  #拼接配置文件完整路径：运行目录 + 文件名
         with open(config_path, 'w') as f:                        #以写入模式打开配置文件，如果文件不存在则创建，存在则覆盖
             yaml.dump(self.__dict__, f)                          #将当前对象的所有属性（转换为字典）以YAML格式写入文件

@@ -65,13 +65,13 @@ class Trainer:
 
     @torch.no_grad()
     def evaluate(self, loader, mask_type='val'):    #输入
-        """评估 - 原版（Transductive）"""
+        """评估模型在验证集或测试集上的性能"""
 
         self.model.eval()   #将模型设置为评估模式（关闭Dropout和BatchNorm的训练行为）
 
-        all_preds = []      #用于存储所有预测结果的列表
-        all_labels = []     #用于存储所有真实标签的列表
-        all_probs = []      #用于存储所有预测概率的列表
+        all_preds = []      #用于存储所有 预测标签 的列表
+        all_labels = []     #用于存储所有 真实标签 的列表
+        all_probs = []      #用于存储所有 预测概率 的列表
 
         for batch_data in loader:  #遍历数据加载器中的每个批次
             batch_data = batch_data.to(self.device)  #将批次数据移动到指定设备（GPU/CPU）
@@ -94,9 +94,9 @@ class Trainer:
         return None, None, None         #如果没有有效数据，返回None
 
     def train(self, data: Data, criterion, optimizer, scheduler):       #输入PyG Data对象、损失函数、优化器、学习率调度器，输出训练好的模型、最优阈值字典
-        """主训练循环"""
+        """主训练循环，协调整个训练过程"""
         print(f"\n[3/4] 开始训练...")
-
+        #初始化边级别的小批量加载器
         train_loader = EdgeBatchLoader(data, self.config, shuffle=True)     #训练数据加载器（打乱顺序）
         val_loader = EdgeBatchLoader(data, self.config, shuffle=False)      #验证数据加载器（不打乱）
 

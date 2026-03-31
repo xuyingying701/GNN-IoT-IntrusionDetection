@@ -64,6 +64,7 @@ class GraphTransformer(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor,
                 edge_attr: torch.Tensor) -> torch.Tensor:
+        """模型的前向传播，核心计算逻辑"""
         x = self.node_encoder(x)                    #每个节点的特征（高维表示）  [776,128]
         edge_feat = self.edge_encoder(edge_attr)    #每条通信的特征（高维表示)   [211043,128]
 

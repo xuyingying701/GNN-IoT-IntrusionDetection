@@ -18,7 +18,7 @@ class GraphBuilder:
 
     def build(self, df: pd.DataFrame, train_idx: np.ndarray, val_idx: np.ndarray,
               test_idx: np.ndarray, feature_cols: List[str]) -> Data:
-        """构建图数据 - 修复数据泄露问题"""
+        """构建图数据 - 将DataFrame转换为PyG图数据结构"""
         print("\n[2/4] 构建图结构...")
 
         #1. 创建节点映射
@@ -36,7 +36,7 @@ class GraphBuilder:
         num_edges = edge_index.size(1)             #统计总共有多少条网络连接（边）
         print(f"   边数: {num_edges}")
 
-        #3. 创建掩码
+        #3. 创建掩码张量
         train_mask = torch.zeros(num_edges, dtype=torch.bool)
         val_mask = torch.zeros(num_edges, dtype=torch.bool)
         test_mask = torch.zeros(num_edges, dtype=torch.bool)
@@ -45,27 +45,23 @@ class GraphBuilder:
         val_mask[val_idx] = True
         test_mask[test_idx] = True
 
-        # ===== 关键修复：只用训练边构建节点特征 =====
+        #4.只用训练边构建节点特征
         print("   🛡️ 使用训练边构建节点特征（防止数据泄露）...")
-
         #提取训练边
         train_edges_idx = torch.where(train_mask)[0]
         train_edge_index = edge_index[:, train_edges_idx]
         train_edge_attr = edge_attr[train_edges_idx]
-
         #只用训练边构建节点特征
         node_attr = self._build_node_features_from_edges(
             train_edge_index, train_edge_attr, num_nodes
         )
 
-        #获取参与训练的节点（用于标准化）
-        train_nodes = torch.unique(torch.cat([
+        #5.标准化（只用训练数据统计量）
+        train_nodes = torch.unique(torch.cat([          #获取参与训练的节点
             train_edge_index[0], train_edge_index[1]
         ]))
-
         #标准化节点特征（只用训练节点）
         node_attr = self._normalize_features_safe(node_attr, train_nodes)
-
         #标准化边特征（只用训练边）
         edge_attr = self._normalize_edge_features_safe(edge_attr, train_edges_idx)
 
@@ -73,7 +69,7 @@ class GraphBuilder:
         print(f"   边特征维度: {edge_attr.size(1)}")
         print(f"   训练边数: {len(train_edges_idx)}")
 
-        #创建图数据对象，将节点特征、边索引和边特征封装在一起
+        #6.创建PyG Data对象（将节点特征、边索引和边特征封装在一起）
         data = Data(x=node_attr, edge_index=edge_index, edge_attr=edge_attr)
         data.y = edge_labels                #边标签
         data.train_mask = train_mask        #训练掩码
@@ -83,26 +79,26 @@ class GraphBuilder:
         return data
 
     def _build_node_features_from_edges(self, edge_index, edge_attr, num_nodes):
-        """只用指定的边构建节点特征"""
-        # 计算节点度
+        """基于边特征聚合生成节点特征"""
+        #1.计算节点度：统计每个IP作为源或目标出现的次数
         node_degree = torch.zeros(num_nodes, dtype=torch.float32)
         node_degree.index_add_(0, edge_index[0], torch.ones(edge_index.size(1)))
         node_degree.index_add_(0, edge_index[1], torch.ones(edge_index.size(1)))
 
-        # 累加边特征
+        #2.聚合边特征：对每个节点，累加所有相连边的特征
         node_feat_sum = torch.zeros((num_nodes, edge_attr.size(1)), dtype=torch.float32)
         node_feat_sum.index_add_(0, edge_index[0], edge_attr)
         node_feat_sum.index_add_(0, edge_index[1], edge_attr)
 
-        # 计算平均特征（避免除以0）
+        #3.计算平均特征（避免除以0）
         node_degree_safe = node_degree.clamp(min=1)
         node_feat_mean = node_feat_sum / node_degree_safe.unsqueeze(1)
 
-        # 处理孤立节点（用全局均值）
+        #4.处理孤立节点：用全局均值填充
         global_mean = edge_attr.mean(dim=0)
         node_feat_mean[node_degree == 0] = global_mean
 
-        # 添加对数度数特征
+        #5.添加对数度数特征
         degree_feat = torch.log1p(node_degree).unsqueeze(1)
         node_attr = torch.cat([node_feat_mean, degree_feat], dim=1).to(torch.float32)
 

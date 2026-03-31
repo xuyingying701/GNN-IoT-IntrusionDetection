@@ -1,0 +1,34 @@
+main.py __main__
+    ├── parse_args() → args
+    ├── Config() → config
+    │   └── __post_init__() → 创建 run_dir
+    ├── config.save() → config.yaml
+    │
+    └── run_optimized_training(config) → final_f1
+        ├── DataProcessor(config) → processor
+        │   ├── load_data() → df
+        │   └── preprocess(df) → final_df, train_idx, val_idx, test_idx, attack_names, feature_cols
+        │
+        ├── GraphBuilder() → builder
+        │   └── build(...) → data (PyG Data对象)
+        │
+        ├── GraphTransformer(...) → model
+        ├── FocalLoss(...) → criterion  
+        ├── AdamW(...) → optimizer
+        ├── ReduceLROnPlateau(...) → scheduler
+        ├── Trainer(...) → trainer
+        │   └── train(data, criterion, optimizer, scheduler) → model, best_thresholds
+        │       ├── EdgeBatchLoader(data, shuffle=True) → train_loader
+        │       ├── EdgeBatchLoader(data, shuffle=False) → val_loader
+        │       ├── train_epoch(loader, criterion, optimizer) → loss
+        │       │   └── GraphTransformer.forward() → out
+        │       │       └── MAF.forward() → x_fused
+        │       ├── evaluate(loader, 'val') → preds, labels, probs
+        │       ├── evaluate(loader, 'test') → preds, labels, probs
+        │       └── AdaptiveThresholdOptimizer.fit() → thresholds
+        │
+        ├── evaluate(val_loader, 'test') → test_preds, test_labels, test_probs
+        ├── AdaptiveThresholdOptimizer.predict() → y_pred_optimized
+        ├── MetricsCalculator.calculate_all() → metrics
+        ├── plot_results() → confusion_matrix.png, training_curves.png
+        └── 保存 results.json
