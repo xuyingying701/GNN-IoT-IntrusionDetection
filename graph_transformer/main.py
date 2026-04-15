@@ -196,9 +196,18 @@ def run_training(config: Config):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2)
 
-        # 绘制混淆矩阵和训练曲线
+        #绘制混淆矩阵和训练曲线
         plot_results(y_true, y_pred_optimized, target_names, trainer, config.run_dir)
-
+        #========== 保存模型 ==========
+        model_path = os.path.join(config.run_dir, 'model.pt')
+        torch.save({
+            'model_state_dict': model.state_dict(),     #模型参数
+            'config': config.__dict__,                  #配置信息
+            'attack_names': attack_names,               #类别映射
+            'best_thresholds': best_thresholds,         #最佳阈值
+            'metrics': metrics                          #评估指标
+        }, model_path)
+        print(f"💾 模型已保存: {model_path}")
         return metrics['macro_f1']
     else:
         print("❌ 评估失败")

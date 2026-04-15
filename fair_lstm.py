@@ -1,523 +1,383 @@
 import os
-import pandas as pd
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.utils.class_weight import compute_class_weight
-from sklearn.metrics import (classification_report, f1_score, accuracy_score,
-                             confusion_matrix, precision_recall_curve, roc_auc_score,
-                             average_precision_score)
-from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import f1_score, confusion_matrix
+import numpy as np
+from datetime import datetime
+import time         #计时
+from metrics_calculator import MetricsCalculator
 import warnings
-import time
-import copy
-import matplotlib.pyplot as plt
-import seaborn as sns
-import gc
 import json
 import yaml
-from datetime import datetime
-from typing import Dict, List, Tuple, Optional, Any, Union
-from dataclasses import dataclass, field
-import argparse
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 warnings.filterwarnings('ignore')
-os.environ['PYTHONHASHSEED'] = str(42)
+from data_processor import DataProcessor
+from config import Config as MainConfig
 
 
-# ================= 严格对齐配置 =================
-@dataclass
-class FairLSTMConfig:
-    """与GraphSAGE/Transformer严格对齐的LSTM配置"""
-    # === 与主模型完全一致的配置 ===
-    random_seed: int = 42
-    hidden_channels: int = 128  # 对齐GraphSAGE/Transformer
-    num_layers: int = 2  # 对齐2层
-    epochs: int = 300  # 对齐
-    patience: int = 50  # 对齐
-    learning_rate: float = 0.0005  # 对齐
-    dropout: float = 0.2  # 对齐
-    batch_size: int = 10000  # 对齐
+# ================= 配置（完全对齐主函数） =================
+class LSTMBaselineConfig:
+    """LSTM基线配置 - 与主函数GraphTransformer完全对齐"""
+    # 模型架构（对齐）
+    hidden_dim: int = 128   #对齐 GraphTransformer.hidden_channels
+    num_layers: int = 2     #对齐 GraphTransformer.num_layers
+    dropout: float = 0.3    #对齐 GraphTransformer.dropout
 
-    # === LSTM特有配置（但保持公平） ===
-    bidirectional: bool = True  # 双向使hidden*2，对齐图模型的multi-head
+    # 训练参数（对齐）
+    epochs: int = 300   #对齐
+    patience: int = 50  #对齐
+    learning_rate: float = 0.0003   #对齐 3e-4
+    batch_size: int = 10000         #对齐
+    weight_decay: float = 5e-4      #对齐
 
-    # === 损失函数对齐 ===
-    focal_gamma: float = 4.0  # 对齐主模型的base_focal_gamma
+    # LSTM特有（但保持公平）
+    bidirectional: bool = True  # 双向，使参数量接近Transformer
+    num_lstm_layers: int = 2    # LSTM层数，对齐
 
-    # === 类别特定配置（完全对齐） ===
-    class_weights_boost: Dict[str, float] = field(default_factory=lambda: {
-        'injection': 2.2,  # 完全对齐
-        'password': 2.5,  # 完全对齐
-        'mitm': 1.0,  # 完全对齐
-    })
+    # 损失函数（对齐）
+    focal_gamma: float = 2.0        #对齐 base_focal_gamma
+    label_smoothing: float = 0.1    #对齐
 
-    # === 数据路径（完全一致） ===
-    data_path: str = 'D:/01Thesis/04代码实现/project/data/train_test_network.csv'
-    output_dir: str = './fair_lstm_outputs'
+    #路径
+    data_path: str = "D:\\01Thesis\\04Git_project\\data\\train_test_network.csv"
+    output_dir: str = "D:\\01Thesis\\04Git_project\\results"
 
     def __post_init__(self):
-        os.makedirs(self.output_dir, exist_ok=True)
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = os.path.join(self.output_dir, f"fair_lstm_run_{self.timestamp}")
-        os.makedirs(self.run_dir, exist_ok=True)
+        """创建实验专用的输出目录"""
+        os.makedirs(self.output_dir, exist_ok=True)                 #创建根目录
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")   #时间戳
+        self.run_dir = os.path.join(self.output_dir, f"lstm_run_{self.timestamp}") #本次实验目录
+        os.makedirs(self.run_dir, exist_ok=True)                    #创建实验目录
 
     def save(self):
         """保存配置"""
-        config_path = os.path.join(self.run_dir, 'config.yaml')
+        config_path = os.path.join(self.run_dir, 'config.yaml') #将配置保存为 YAML 文件，便于复现实验
         with open(config_path, 'w') as f:
             yaml.dump(self.__dict__, f)
 
-
-# ================= 对齐版LSTM =================
-class FairLSTM(nn.Module):
+# ================= LSTM模型（对齐Transformer分类头） =================
+class LSTMBaseline(nn.Module):
     """
-    与GraphSAGE/Transformer严格对齐的LSTM
+    LSTM基线模型 - 严格对齐GraphTransformer
 
     对齐策略：
-    1. 输入维度 = edge_attr维度（完全一致）
-    2. hidden = 128（对齐）
-    3. layers = 2（对齐）
-    4. dropout = 0.2（对齐）
-    5. 分类器结构：hidden*2 -> hidden*2 -> hidden -> num_classes（对齐）
+    1. 隐藏层维度：128（对齐）
+    2. 层数：2（对齐）
+    3. Dropout：0.3（对齐）
+    4. 分类器结构：对齐Transformer的classifier
+    5. 使用Focal Loss（对齐）
     """
 
-    def __init__(self, input_dim: int, hidden: int = 128, num_layers: int = 2,
-                 num_classes: int = 10, dropout: float = 0.2, bidirectional: bool = True):
+    def __init__(self, input_dim: int, num_classes: int, config: LSTMBaselineConfig):
         super().__init__()
 
-        self.hidden = hidden
-        self.num_layers = num_layers
-        self.bidirectional = bidirectional
-        self.num_directions = 2 if bidirectional else 1
+        self.config = config
+        self.hidden_dim = config.hidden_dim
+        self.num_layers = config.num_layers
+        self.bidirectional = config.bidirectional
+        self.num_directions = 2 if config.bidirectional else 1
 
-        # 输入投影（可选，但保持维度对齐）
-        self.input_proj = nn.Sequential(
-            nn.Linear(input_dim, hidden),
-            nn.BatchNorm1d(hidden),
-            nn.ReLU(),
-            nn.Dropout(dropout)
+        # ===== 输入编码器（对齐Transformer的node_encoder结构）=====
+        self.input_encoder = nn.Sequential(
+            nn.Linear(input_dim, config.hidden_dim),  #11 → 128
+            nn.BatchNorm1d(config.hidden_dim),        #归一化
+            nn.ReLU(),                                #激活函数
+            nn.Dropout(config.dropout)                #Dropout防止过拟合
         )
 
-        # LSTM层 - 严格对齐参数
+        # ===== LSTM层 =====
         self.lstm = nn.LSTM(
-            input_size=hidden,  # 投影后
-            hidden_size=hidden,  # 对齐128
-            num_layers=num_layers,  # 对齐2层
-            batch_first=True,
-            dropout=dropout if num_layers > 1 else 0,
-            bidirectional=bidirectional
+            input_size=config.hidden_dim,   #输入维度 128
+            hidden_size=config.hidden_dim,  #隐藏层维度 128
+            num_layers=2,                   #2层LSTM
+            batch_first=True,               #批次维度在第一维
+            bidirectional=True              #双向LSTM（参数量翻倍）
         )
 
-        # 分类器 - 完全对齐Transformer的分类器结构
-        # Transformer: Linear(hidden*3, hidden*2) -> ReLU -> Dropout -> Linear(hidden*2, out)
-        # LSTM使用hidden*2（双向拼接）对齐Transformer的hidden*3
+        # ===== 分类器（完全对齐Transformer的分类器结构）=====
+        # Transformer分类器: Linear(hidden*3, hidden*2) -> BN -> ReLU -> Dropout
+        #                    -> Linear(hidden*2, hidden) -> BN -> ReLU -> Dropout
+        #                    -> Linear(hidden, num_classes)
+        #
+        # LSTM使用 hidden * num_directions 对齐 Transformer 的 hidden * 3
+
+        lstm_out_dim = config.hidden_dim * self.num_directions
+
         self.classifier = nn.Sequential(
-            nn.Linear(hidden * self.num_directions, hidden * 2),  # 对齐维度
+            # 第1层：256 → 256
+            nn.Linear(lstm_out_dim, config.hidden_dim * 2),
+            nn.BatchNorm1d(config.hidden_dim * 2),
             nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden * 2, hidden),  # 中间层
+            nn.Dropout(config.dropout),
+
+            # 第2层：256 → 128
+            nn.Linear(config.hidden_dim * 2, config.hidden_dim),
+            nn.BatchNorm1d(config.hidden_dim),
             nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden, num_classes)  # 输出层
+            nn.Dropout(config.dropout // 2),
         )
+        # 输出层
+        self.output_proj = nn.Linear(config.hidden_dim, num_classes)  # 128 → 10
+
+        #初始化权重
+        self._init_weights()
+
+    def _init_weights(self):
+        """初始化权重（对齐Transformer）"""
+        for name, param in self.lstm.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.xavier_uniform_(param)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param)
+            elif 'bias' in name:
+                nn.init.constant_(param, 0)
+
+        for module in self.classifier.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
 
     def forward(self, x):
         """
-        输入: x - [batch_size, feature_dim] (单条边特征)
-        输出: [batch_size, num_classes]
+        参数:
+            x: 边特征 [batch_size, input_dim]
+        返回:
+            logits: [batch_size, num_classes]
         """
-        # 输入投影
-        x = self.input_proj(x)  # [batch, hidden]
+        #1. 输入编码
+        x = self.input_encoder(x)  # [batch, 128]
 
-        # LSTM需要序列维度，我们构造长度为1的序列
-        # 这样LSTM就变成了"序列感知的全连接层"
-        x = x.unsqueeze(1)  # [batch, 1, hidden]
+        #2. LSTM需要序列维度，将每个样本视为长度为1的序列
+        #    这样LSTM退化为带门控的全连接层（公平对比）
+        x = x.unsqueeze(1)  # [batch, 1, 128]
 
-        # LSTM前向
-        lstm_out, (hidden, cell) = self.lstm(x)
-        # lstm_out: [batch, 1, hidden * num_directions]
+        #3. LSTM前向
+        lstm_out, (h_n, c_n) = self.lstm(x)  #[batch, 1, 256]（双向=256）
 
-        # 取最后时间步的输出
-        out = lstm_out[:, -1, :]  # [batch, hidden * num_directions]
+        #4. 取最后时间步的输出
+        out = lstm_out[:, -1, :]    #[batch, 128 * 2]
 
-        # 分类
-        return self.classifier(out)
+        #5. 分类器
+        out = self.classifier(out)  #[batch, 128]
 
+        #6. 输出层
+        logits = self.output_proj(out)  #[batch, 10]
 
-# ================= 严格对齐数据处理 =================
-class FairDataProcessor:
-    """
-    与GraphSAGE/Transformer完全一致的数据处理
+        return logits
 
-    关键对齐点：
-    1. 相同的train/val/test划分（边级别）
-    2. 相同的特征处理
-    3. 相同的类别权重计算
-    """
-
-    def __init__(self, config: FairLSTMConfig):
-        self.config = config
-        self.label_encoders = {}
-        self.scaler = StandardScaler()
-        self.attack_encoder = LabelEncoder()
-
-    def load_and_split(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
-    np.ndarray, np.ndarray, np.ndarray,
-    Dict[int, str], List[str]]:
-        """
-        完全对齐GraphSAGE的数据划分流程
-        """
-        print(f"\n[1/4] 加载数据: {self.config.data_path}")
-        df = pd.read_csv(self.config.data_path)
-        print(f"   原始数据形状: {df.shape}")
-
-        target_col = 'type' if 'type' in df.columns else 'label'
-
-        # === 完全对齐：先划分，再处理 ===
-        indices = np.arange(len(df))
-        temp_target = df[target_col].astype(str)
-
-        # 与GraphSAGE完全一致的划分比例：60% train, 20% val, 20% test
-        train_idx, temp_idx = train_test_split(
-            indices, test_size=0.4, random_state=self.config.random_seed,
-            stratify=temp_target.values
-        )
-        val_idx, test_idx = train_test_split(
-            temp_idx, test_size=0.5, random_state=self.config.random_seed,
-            stratify=temp_target.values[temp_idx]
-        )
-
-        # 划分数据集
-        train_df = df.iloc[train_idx].copy()
-        val_df = df.iloc[val_idx].copy()
-        test_df = df.iloc[test_idx].copy()
-
-        print(f"\n   划分后:")
-        print(f"     训练集: {len(train_df)} 条边")
-        print(f"     验证集: {len(val_df)} 条边")
-        print(f"     测试集: {len(test_df)} 条边")
-
-        # === 特征列（与GraphSAGE完全一致） ===
-        exclude_cols = ['src_ip', 'dst_ip', target_col, 'id', 'timestamp', 'Unnamed: 0']
-        feature_cols = [c for c in df.columns if c not in exclude_cols]
-
-        # === 处理类别特征（与GraphSAGE完全一致） ===
-        train_df, val_df, test_df = self._encode_categorical_features(
-            train_df, val_df, test_df, feature_cols
-        )
-
-        # === 标准化（与GraphSAGE完全一致） ===
-        train_df, val_df, test_df = self._standardize_features(
-            train_df, val_df, test_df, feature_cols
-        )
-
-        # === 编码标签（与GraphSAGE完全一致） ===
-        train_df, val_df, test_df, attack_names = self._encode_target(
-            train_df, val_df, test_df, target_col
-        )
-
-        # 提取特征和标签
-        X_train = train_df[feature_cols].values.astype(np.float32)
-        X_val = val_df[feature_cols].values.astype(np.float32)
-        X_test = test_df[feature_cols].values.astype(np.float32)
-
-        y_train = train_df['attack_type'].values.astype(np.int64)
-        y_val = val_df['attack_type'].values.astype(np.int64)
-        y_test = test_df['attack_type'].values.astype(np.int64)
-
-        # 打印分布
-        self._print_distribution(y_train, y_val, y_test, attack_names)
-
-        return X_train, X_val, X_test, y_train, y_val, y_test, attack_names, feature_cols
-
-    def _encode_categorical_features(self, train_df, val_df, test_df, feature_cols):
-        """与GraphSAGE完全一致的类别特征编码"""
-        for col in feature_cols:
-            if train_df[col].dtype == 'object':
-                le = LabelEncoder()
-
-                # 只从训练集学习编码
-                train_values = train_df[col].fillna('Unknown').astype(str).unique()
-                all_possible_values = list(train_values)
-                if 'Unknown' not in all_possible_values:
-                    all_possible_values.append('Unknown')
-
-                le.fit(all_possible_values)
-                self.label_encoders[col] = le
-
-                # 转换所有数据集
-                for df_subset in [train_df, val_df, test_df]:
-                    df_subset[col] = df_subset[col].fillna('Unknown').astype(str)
-                    df_subset[col] = df_subset[col].apply(
-                        lambda x: x if x in le.classes_ else 'Unknown'
-                    )
-                    df_subset[col] = le.transform(df_subset[col])
-            else:
-                for df_subset in [train_df, val_df, test_df]:
-                    df_subset[col] = df_subset[col].fillna(0)
-
-        return train_df, val_df, test_df
-
-    def _standardize_features(self, train_df, val_df, test_df, feature_cols):
-        """与GraphSAGE完全一致的标准化（只从训练集拟合）"""
-        numeric_cols = [c for c in feature_cols if train_df[c].dtype != 'object']
-        if numeric_cols:
-            # 只从训练集拟合
-            train_df[numeric_cols] = self.scaler.fit_transform(train_df[numeric_cols])
-            # 应用同样的变换
-            val_df[numeric_cols] = self.scaler.transform(val_df[numeric_cols])
-            test_df[numeric_cols] = self.scaler.transform(test_df[numeric_cols])
-
-        return train_df, val_df, test_df
-
-    def _encode_target(self, train_df, val_df, test_df, target_col):
-        """与GraphSAGE完全一致的标签编码"""
-        # 只从训练集学习
-        train_targets = train_df[target_col].astype(str).unique()
-        self.attack_encoder.fit(train_targets)
-
-        train_df['attack_type'] = self.attack_encoder.transform(
-            train_df[target_col].astype(str)
-        )
-
-        # 处理验证集和测试集中的未知值
-        most_common = train_targets[0]
-        for df_subset in [val_df, test_df]:
-            targets = df_subset[target_col].astype(str)
-            df_subset['attack_type'] = targets.apply(
-                lambda x: self.attack_encoder.transform([x])[0]
-                if x in self.attack_encoder.classes_
-                else self.attack_encoder.transform([most_common])[0]
-            )
-
-        attack_names = {i: name for i, name in enumerate(self.attack_encoder.classes_)}
-        return train_df, val_df, test_df, attack_names
-
-    def _print_distribution(self, y_train, y_val, y_test, attack_names):
-        """打印分布"""
-        print(f"\n📊 各类别样本数:")
-        print("-" * 60)
-        print(f"{'类别':<15} {'训练集':<10} {'验证集':<10} {'测试集':<10} {'总计':<10}")
-        print("-" * 60)
-
-        for i, name in attack_names.items():
-            train_cnt = (y_train == i).sum()
-            val_cnt = (y_val == i).sum()
-            test_cnt = (y_test == i).sum()
-            total = train_cnt + val_cnt + test_cnt
-            print(f"{name:<15} {train_cnt:<10} {val_cnt:<10} {test_cnt:<10} {total:<10}")
-
-        print("-" * 60)
-        print(
-            f"{'总计':<15} {len(y_train):<10} {len(y_val):<10} {len(y_test):<10} {len(y_train) + len(y_val) + len(y_test):<10}")
-
-
-# ================= 焦点损失函数（对齐） =================
+# ================= Focal Loss（对齐主函数） =================
 class FocalLoss(nn.Module):
-    """与ClassSpecificFocalLoss对齐的焦点损失"""
+    """Focal Loss - 与主函数完全对齐"""
 
-    def __init__(self, weight: Optional[torch.Tensor] = None, gamma: float = 4.0):
+    def __init__(self, weight=None, gamma=2.0, label_smoothing=0.1):
         super().__init__()
         self.weight = weight
         self.gamma = gamma
+        self.label_smoothing = label_smoothing
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        ce_loss = F.cross_entropy(input, target, weight=self.weight, reduction='none')
-        pt = torch.exp(-ce_loss)
-        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
-        return focal_loss.mean()
+    def forward(self, input, target):
+        # 标签平滑
+        n_classes = input.size(1)
+        log_probs = F.log_softmax(input, dim=1)
 
+        with torch.no_grad():
+            smooth_targets = torch.full_like(log_probs,
+                                             self.label_smoothing / (n_classes - 1))
+            smooth_targets.scatter_(1, target.unsqueeze(1),
+                                    1.0 - self.label_smoothing)
 
-# ================= 公平训练器 =================
-class FairTrainer:
-    """与GraphSAGE训练器对齐"""
+        # 交叉熵
+        ce = -(smooth_targets * log_probs).sum(dim=1)
 
-    def __init__(self, model: nn.Module, config: FairLSTMConfig,
-                 attack_names: Dict, device: torch.device):
+        # Focal权重
+        pt = torch.exp(-ce)
+        focal_weight = (1 - pt) ** self.gamma
+
+        # 类别权重
+        if self.weight is not None:
+            sample_weight = self.weight[target]
+            loss = (focal_weight * ce * sample_weight).mean()
+        else:
+            loss = (focal_weight * ce).mean()
+
+        return loss
+
+# ================= 训练器（对齐主函数Trainer） =================
+class LSTMTrainer:
+    """LSTM训练器 - 与主函数Trainer完全对齐"""
+
+    def __init__(self, model, config, device):
         self.model = model
         self.config = config
-        self.attack_names = attack_names
         self.device = device
         self.best_val_f1 = 0
         self.best_state = None
         self.patience_cnt = 0
-        self.best_thresholds = None
+
+        # 记录训练历史
+        self.train_losses = []
+        self.val_f1s = []
+        self.test_f1s = []
+
+    def train_epoch(self, loader, criterion, optimizer):
+        """训练一个epoch"""
+        self.model.train()
+        total_loss = 0
+        num_batches = 0
+
+        for X_batch, y_batch in loader:
+            X_batch = X_batch.to(self.device)
+            y_batch = y_batch.to(self.device)
+
+            optimizer.zero_grad()
+            logits = self.model(X_batch)
+            loss = criterion(logits, y_batch)
+            loss.backward()
+
+            # 梯度裁剪（对齐）
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+
+            optimizer.step()
+
+            total_loss += loss.item()
+            num_batches += 1
+
+        return total_loss / max(num_batches, 1)
+
+    @torch.no_grad()
+    def evaluate(self, loader):
+        """评估模型"""
+        self.model.eval()
+        all_preds = []
+        all_labels = []
+        all_probs = []
+
+        for X_batch, y_batch in loader:
+            X_batch = X_batch.to(self.device)
+            y_batch = y_batch.to(self.device)
+
+            logits = self.model(X_batch)
+            probs = F.softmax(logits, dim=1)
+            preds = logits.argmax(dim=1)
+
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(y_batch.cpu().numpy())
+            all_probs.extend(probs.cpu().numpy())
+
+        if all_preds:
+            f1 = f1_score(all_labels, all_preds, average='macro', zero_division=0)
+            return np.array(all_preds), np.array(all_labels), np.array(all_probs), f1
+        return None, None, None, 0.0
 
     def train(self, train_loader, val_loader, test_loader, criterion, optimizer, scheduler):
-        """与GraphSAGE完全对齐的训练循环"""
-        print(f"\n[2/4] 开始训练 (Epochs: {self.config.epochs})...")
-
-        history = {
-            'train_loss': [], 'val_loss': [],
-            'val_f1': [], 'test_f1': []
-        }
+        """主训练循环"""
+        print(f"\n🚀 开始训练LSTM基线...")
+        print(f"   参数: epochs={self.config.epochs}, lr={self.config.learning_rate}")
 
         for epoch in range(1, self.config.epochs + 1):
             # 训练
-            train_loss = self._train_epoch(train_loader, criterion, optimizer)
+            loss = self.train_epoch(train_loader, criterion, optimizer)
+            self.train_losses.append(loss)
 
-            # 评估
-            val_loss, val_f1, val_preds, val_labels, val_probs = self._evaluate(val_loader, criterion)
-            _, test_f1, test_preds, test_labels, test_probs = self._evaluate(test_loader, criterion)
+            # 每5个epoch评估一次（对齐主函数）
+            if epoch % 5 == 0 or epoch == 1:
+                # 验证集评估
+                val_preds, val_labels, val_probs, val_f1 = self.evaluate(val_loader)
+                # 测试集评估
+                test_preds, test_labels, test_probs, test_f1 = self.evaluate(test_loader)
 
-            # 学习率调整
-            if scheduler:
-                scheduler.step()
+                self.val_f1s.append(val_f1)
+                self.test_f1s.append(test_f1)
 
-            # 保存历史
-            history['train_loss'].append(train_loss)
-            history['val_loss'].append(val_loss)
-            history['val_f1'].append(val_f1)
-            history['test_f1'].append(test_f1)
+                # 学习率调度（对齐主函数）
+                if scheduler is not None:
+                    if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                        scheduler.step(val_f1)
+                    else:
+                        scheduler.step()
 
-            # 早停检查
-            if val_f1 > self.best_val_f1:
-                self.best_val_f1 = val_f1
-                self.best_state = copy.deepcopy(self.model.state_dict())
-                self.patience_cnt = 0
+                # 早停检查
+                if val_f1 > self.best_val_f1:
+                    self.best_val_f1 = val_f1
+                    self.best_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                    self.patience_cnt = 0
+                else:
+                    self.patience_cnt += 1
 
-                # 保存最佳模型
-                torch.save(self.best_state, os.path.join(self.config.run_dir, 'best_model.pth'))
-            else:
-                self.patience_cnt += 1
+                # 打印进度
+                if epoch % 20 == 0:
+                    print(f"Epoch {epoch:3d} | Loss: {loss:.4f} | "
+                          f"Val F1: {val_f1:.4f} | Test F1: {test_f1:.4f} | "
+                          f"Best Val: {self.best_val_f1:.4f}")
 
-            # 打印进度
-            if epoch % 20 == 0:
-                print(f"Epoch {epoch:3d} | Train Loss: {train_loss:.4f} | "
-                      f"Val Loss: {val_loss:.4f} | Val F1: {val_f1:.4f} | Test F1: {test_f1:.4f}")
-
-            if self.patience_cnt >= self.config.patience:
-                print(f"⏱️ 早停于 Epoch {epoch}")
-                break
+                # 早停
+                if self.patience_cnt >= self.config.patience:
+                    print(f"⏱️ 早停于 Epoch {epoch}")
+                    break
 
         # 加载最佳模型
         if self.best_state:
             self.model.load_state_dict(self.best_state)
             print(f"\n✅ 加载最佳验证集模型 (Val F1: {self.best_val_f1:.4f})")
 
-        return history
+        return self.model
 
-    def _train_epoch(self, train_loader, criterion, optimizer):
-        """训练一个epoch"""
-        self.model.train()
-        total_loss = 0
+def save_results(metrics, model, config, attack_names, train_history, test_labels, test_preds, test_probs):
+    """保存所有结果"""
+    save_dir = config.run_dir
 
-        for X_batch, y_batch in train_loader:
-            X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
-
-            optimizer.zero_grad()
-            outputs = self.model(X_batch)
-            loss = criterion(outputs, y_batch)
-            loss.backward()
-
-            # 梯度裁剪（与GraphSAGE对齐）
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-
-            optimizer.step()
-
-            total_loss += loss.item()
-
-        return total_loss / len(train_loader)
-
-    @torch.no_grad()
-    def _evaluate(self, loader, criterion):
-        """评估"""
-        self.model.eval()
-        total_loss = 0
-        all_preds = []
-        all_labels = []
-        all_probs = []
-
-        for X_batch, y_batch in loader:
-            X_batch, y_batch = X_batch.to(self.device), y_batch.to(self.device)
-
-            outputs = self.model(X_batch)
-            loss = criterion(outputs, y_batch)
-
-            total_loss += loss.item()
-
-            probs = F.softmax(outputs, dim=1)
-            preds = outputs.argmax(dim=1)
-
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(y_batch.cpu().numpy())
-            all_probs.extend(probs.cpu().numpy())
-
-        avg_loss = total_loss / len(loader)
-        f1 = f1_score(all_labels, all_preds, average='macro', zero_division=0)
-
-        return avg_loss, f1, np.array(all_preds), np.array(all_labels), np.array(all_probs)
-
-
-# ================= 评估函数 =================
-def evaluate_and_save(y_true, y_pred, y_prob, attack_names, save_dir):
-    """全面评估并保存结果"""
-
-    # 计算所有指标
-    macro_f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
-    weighted_f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0)
-    accuracy = accuracy_score(y_true, y_pred)
-
-    print("\n" + "=" * 70)
-    print("📊 公平LSTM评估结果")
-    print("=" * 70)
-    print(f"\n🏆 宏观F1 (Macro-F1): {macro_f1:.4f}")
-    print(f"📊 准确率 (Accuracy): {accuracy:.4f}")
-    print(f"⚖️ 加权F1 (Weighted-F1): {weighted_f1:.4f}")
-
-    # 每类指标
-    print("\n" + "-" * 70)
-    print("各类别详细指标:")
-    print("-" * 70)
-    print(f"{'类别':<15} {'Precision':<12} {'Recall':<12} {'F1-Score':<12} {'样本数':<8}")
-    print("-" * 70)
-
-    per_class = {}
-    unique_labels = sorted(np.unique(np.concatenate([y_true, y_pred])))
-
-    for label in unique_labels:
-        class_name = attack_names.get(label, f'Class_{label}')
-        precision = precision_score(y_true, y_pred, labels=[label], average=None, zero_division=0)[0]
-        recall = recall_score(y_true, y_pred, labels=[label], average=None, zero_division=0)[0]
-        f1 = f1_score(y_true, y_pred, labels=[label], average=None, zero_division=0)[0]
-        support = (y_true == label).sum()
-
-        per_class[class_name] = {
-            'precision': float(precision),
-            'recall': float(recall),
-            'f1': float(f1),
-            'support': int(support)
-        }
-
-        print(f"{class_name:<15} {precision:<12.4f} {recall:<12.4f} {f1:<12.4f} {support:<8}")
-
-    # 保存结果
+    # 1. 保存指标
     results = {
-        'macro_f1': float(macro_f1),
-        'weighted_f1': float(weighted_f1),
-        'accuracy': float(accuracy),
-        'per_class_metrics': per_class
+        'timestamp': config.timestamp,
+        'model': 'LSTMBaseline',
+        'configuration': {
+            'hidden_dim': config.hidden_dim,
+            'num_layers': config.num_layers,
+            'dropout': config.dropout,
+            'bidirectional': config.bidirectional,
+            'epochs': config.epochs,
+            'learning_rate': config.learning_rate,
+            'batch_size': config.batch_size,
+            'weight_decay': config.weight_decay,
+            'focal_gamma': config.focal_gamma,
+            'label_smoothing': config.label_smoothing,
+        },
+        'metrics': metrics,
+        'training_history': train_history
     }
 
     with open(os.path.join(save_dir, 'results.json'), 'w') as f:
         json.dump(results, f, indent=2)
+    print(f"   ✓ results.json")
 
-    # 绘制混淆矩阵
-    plot_confusion_matrix(y_true, y_pred, attack_names, save_dir)
+    # 2. 保存模型
+    model_path = os.path.join(save_dir, 'model.pth')
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'config': config.__dict__,
+        'attack_names': attack_names,
+        'metrics': metrics
+    }, model_path)
+    print(f"   ✓ model.pth")
 
-    return macro_f1, per_class
+    # 3. 保存混淆矩阵图
+    plot_confusion_matrix(test_labels, test_preds, attack_names, save_dir)
+    print(f"   ✓ confusion_matrix.png")
 
+    # 4. 保存训练曲线
+    plot_training_curves(train_history, save_dir)
+    print(f"   ✓ training_curves.png")
 
 def plot_confusion_matrix(y_true, y_pred, attack_names, save_dir):
     """绘制混淆矩阵"""
     plt.figure(figsize=(14, 6))
 
-    unique_labels = sorted(np.unique(np.concatenate([y_true, y_pred])))
+    unique_labels = np.unique(np.concatenate([y_true, y_pred]))
     target_names = [attack_names.get(i, f'Class_{i}') for i in unique_labels]
 
     # 原始计数
@@ -525,7 +385,7 @@ def plot_confusion_matrix(y_true, y_pred, attack_names, save_dir):
     cm = confusion_matrix(y_true, y_pred, labels=unique_labels)
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=target_names, yticklabels=target_names)
-    plt.title("Fair LSTM - Confusion Matrix (Counts)")
+    plt.title("LSTM Baseline - Confusion Matrix (Counts)")
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.xticks(rotation=45)
@@ -535,7 +395,7 @@ def plot_confusion_matrix(y_true, y_pred, attack_names, save_dir):
     cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
     sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues',
                 xticklabels=target_names, yticklabels=target_names)
-    plt.title("Fair LSTM - Confusion Matrix (Normalized)")
+    plt.title("LSTM Baseline - Confusion Matrix (Normalized)")
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.xticks(rotation=45)
@@ -544,66 +404,59 @@ def plot_confusion_matrix(y_true, y_pred, attack_names, save_dir):
     plt.savefig(os.path.join(save_dir, 'confusion_matrix.png'), dpi=150, bbox_inches='tight')
     plt.close()
 
-
-def plot_training_history(history, save_dir):
-    """绘制训练历史"""
+def plot_training_curves(train_history, save_dir):
+    """绘制训练曲线"""
     plt.figure(figsize=(12, 4))
 
-    # 损失
+    # 损失曲线
     plt.subplot(1, 2, 1)
-    plt.plot(history['train_loss'], label='Train Loss', color='blue')
-    plt.plot(history['val_loss'], label='Val Loss', color='red')
+    plt.plot(train_history.get('train_loss', []), label='Train Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title('Training and Validation Loss')
+    plt.title('Training Loss')
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    # F1
+    # F1 曲线
     plt.subplot(1, 2, 2)
-    plt.plot(history['val_f1'], label='Val F1', color='red')
-    plt.plot(history['test_f1'], label='Test F1', color='green')
+    plt.plot(train_history.get('val_f1', []), label='Val F1')
+    plt.plot(train_history.get('test_f1', []), label='Test F1')
     plt.xlabel('Epoch')
-    plt.ylabel('Macro F1 Score')
-    plt.title('Validation and Test F1 Score')
+    plt.ylabel('Macro-F1')
+    plt.title('F1 Score')
     plt.legend()
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'training_history.png'), dpi=150, bbox_inches='tight')
+    plt.savefig(os.path.join(save_dir, 'training_curves.png'), dpi=150, bbox_inches='tight')
     plt.close()
 
+# ================= 使用示例 =================
+if __name__ == "__main__":
+    #创建配置
+    lstm_config = LSTMBaselineConfig()
 
-# ================= 主函数 =================
-def run_fair_lstm():
-    """运行公平LSTM对比实验"""
+    #复用主函数的数据处理器
+    main_config = MainConfig()
+    main_config.data_path = lstm_config.data_path
+    processor = DataProcessor(main_config)
 
-    # 配置
-    config = FairLSTMConfig()
-    config.__post_init__()
-    config.save()
+    #加载数据
+    df = processor.load_data()
+    df, train_idx, val_idx, test_idx, attack_names, feature_cols = processor.preprocess(df)
 
-    print("=" * 70)
-    print("⚖️ 公平LSTM - 与GraphSAGE/Transformer严格对齐")
-    print("=" * 70)
-    print(f"数据路径: {config.data_path}")
-    print(f"隐藏维度: {config.hidden_channels} (对齐)")
-    print(f"层数: {config.num_layers} (对齐)")
-    print(f"学习率: {config.learning_rate} (对齐)")
-    print(f"Dropout: {config.dropout} (对齐)")
-    print(f"批次大小: {config.batch_size} (对齐)")
-    print(f"输出目录: {config.run_dir}")
-    print("=" * 70)
+    # 提取特征和标签（边级别）
+    X = df[feature_cols].values     #从DataFrame中提取特征数据，转换为NumPy数组
+    y = df['attack_type'].values    #从DataFrame中提取标签数据，转换为NumPy数组
 
-    # 设备
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"\n使用设备: {device}")
+    X_train = X[train_idx]  #使用预划分的索引，从总数据中取出训练集的特征
+    X_val = X[val_idx]      #从总数据中取出验证集的特征
+    X_test = X[test_idx]    #~测试集的特征
+    y_train = y[train_idx]  #~训练集的标签
+    y_val = y[val_idx]      #~验证集的标签
+    y_test = y[test_idx]    #~测试集的标签
 
-    # 数据处理（完全对齐）
-    processor = FairDataProcessor(config)
-    X_train, X_val, X_test, y_train, y_val, y_test, attack_names, feature_cols = processor.load_and_split()
-
-    # 转换为张量
+    #将提取的特征和标签转换为张量
     X_train_t = torch.FloatTensor(X_train)
     X_val_t = torch.FloatTensor(X_val)
     X_test_t = torch.FloatTensor(X_test)
@@ -611,94 +464,98 @@ def run_fair_lstm():
     y_val_t = torch.LongTensor(y_val)
     y_test_t = torch.LongTensor(y_test)
 
-    # 数据加载器
-    train_dataset = TensorDataset(X_train_t, y_train_t)
-    val_dataset = TensorDataset(X_val_t, y_val_t)
-    test_dataset = TensorDataset(X_test_t, y_test_t)
+    #创建DataLoader
+    train_dataset = TensorDataset(X_train_t, y_train_t) #将训练集的特征和标签打包成数据集
+    val_dataset = TensorDataset(X_val_t, y_val_t)       #验证集
+    test_dataset = TensorDataset(X_test_t, y_test_t)    #测试集
 
-    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=lstm_config.batch_size, shuffle=True)#创建训练数据加载器：批量大小=配置值（如10000），训练时打乱顺序
+    val_loader = DataLoader(val_dataset, batch_size=lstm_config.batch_size, shuffle=False)   #创建验证数据加载器：批量大小=配置值，不打乱顺序
+    test_loader = DataLoader(test_dataset, batch_size=lstm_config.batch_size, shuffle=False) #创建测试数据加载器：批量大小=配置值，不打乱顺序
 
-    # 计算类别权重（完全对齐）
-    present_classes = np.unique(y_train)
-    class_weights_array = compute_class_weight('balanced', classes=present_classes, y=y_train)
+    #设备
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"\n使用设备: {device}")
 
-    full_class_weights = np.ones(len(attack_names), dtype=np.float32)
-    for i, cls in enumerate(present_classes):
-        full_class_weights[cls] = class_weights_array[i]
-
-    # 应用类别特定权重提升（完全对齐）
-    attack_name_to_id = {v: k for k, v in attack_names.items()}
-    for class_name, boost in config.class_weights_boost.items():
-        if class_name in attack_name_to_id:
-            class_id = attack_name_to_id[class_name]
-            full_class_weights[class_id] *= boost
-            print(f"\n🎯 {class_name} (ID:{class_id}) 权重提升: {boost}x -> {full_class_weights[class_id]:.2f}")
-
-    class_weights = torch.tensor(full_class_weights, dtype=torch.float).to(device)
-
-    print(f"\n⚖️ 最终类别权重:")
-    for i, name in attack_names.items():
-        print(f"   {name}: {full_class_weights[i]:.2f}")
-
-    # 初始化模型（严格对齐）
-    model = FairLSTM(
-        input_dim=X_train.shape[1],
-        hidden=config.hidden_channels,
-        num_layers=config.num_layers,
-        num_classes=len(attack_names),
-        dropout=config.dropout,
-        bidirectional=True
-    ).to(device)
+    #创建模型
+    model = LSTMBaseline(
+        input_dim=X_train.shape[1],     #输入特征维度（如 16）
+        num_classes=len(attack_names),  #输出类别数（如 10 种攻击类型）
+        config=lstm_config              #LSTM 配置参数（隐藏层维度、层数、dropout等）
+    ).to(device)                        #将模型移动到CPU
 
     print(f"\n🤖 模型参数量: {sum(p.numel() for p in model.parameters()):,}")
 
-    # 损失函数和优化器（对齐）
-    criterion = FocalLoss(weight=class_weights, gamma=config.focal_gamma)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2)
+    train_start_time = time.time()      #开始的时间
 
-    # 训练器
-    trainer = FairTrainer(model, config, attack_names, device)
+    #损失函数和优化器
+    criterion = FocalLoss(              #创建 Focal Loss 损失函数（处理类别不平衡）
+        gamma=lstm_config.focal_gamma,  #聚焦参数（4.0），控制对难样本的关注程度
+        label_smoothing=lstm_config.label_smoothing #标签平滑（0.1），防止模型过自信
+    )
+    #创建 AdamW 优化器（更新模型参数）
+    optimizer = torch.optim.AdamW(
+        model.parameters(),                     #要优化的模型参数
+        lr=lstm_config.learning_rate,           #学习率（0.0005），控制参数更新步长
+        weight_decay=lstm_config.weight_decay   #权重衰减（1e-4），L2正则化防止过拟合
+    )
+    #创建学习率调度器（动态调整学习率）
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,      #要调整学习率的优化器
+        mode='max',     #监控指标越大越好（这里是验证集 F1）
+        factor=0.5,     #学习率衰减因子（每次减半）
+        patience=10,    #10个epoch没提升就降低学习率
+        verbose=True    #打印学习率调整信息
+    )
 
-    # 训练
-    t0 = time.time()
-    history = trainer.train(train_loader, val_loader, test_loader, criterion, optimizer, scheduler)
-    train_time = (time.time() - t0) / 60
+    #训练
+    trainer = LSTMTrainer(model, lstm_config, device)       #创建 LSTM 训练器对象，负责管理整个训练流程
+    model = trainer.train(train_loader, val_loader, test_loader,
+                          criterion, optimizer, scheduler)  #开始训练模型，返回训练好的最佳模型
 
-    # 最终评估
-    print("\n[3/4] 最终测试集评估...")
-    _, test_f1, test_preds, test_labels, test_probs = trainer._evaluate(test_loader, criterion)
+    #最终评估
+    test_preds, test_labels, test_probs, test_f1 = trainer.evaluate(test_loader)
+    print(f"\n🏆 最终测试集 Macro-F1: {test_f1:.4f}")
 
-    # 详细评估
-    macro_f1, per_class = evaluate_and_save(test_labels, test_preds, test_probs, attack_names, config.run_dir)
+    # 评估时使用
+    metrics = MetricsCalculator.calculate_all(
+        y_true=test_labels,      #真实标签
+        y_pred=test_preds,       #预测标签
+        y_prob=test_probs,       #预测概率
+        class_names=attack_names #类别名称映射
+    )
 
-    # 绘制训练历史
-    plot_training_history(history, config.run_dir)
+    #获取指标
+    macro_f1 = metrics['macro_f1']
+    accuracy = metrics['accuracy']
+    macro_fpr = metrics['macro_fpr']
+    macro_fnr = metrics['macro_fnr']
+    weighted_fpr = metrics['weighted_fpr']
+    weighted_fnr = metrics['weighted_fnr']
+    auc_roc = metrics.get('mean_auc_roc', 0)
+    auc_pr = metrics.get('mean_auc_pr', 0)
 
-    # 与主模型对比
-    print("\n" + "=" * 70)
-    print("📊 与图模型的公平对比")
-    print("=" * 70)
-    print(f"\n{'模型':<20} {'Macro-F1':<12} {'配置对齐':<10} {'数据划分':<12}")
-    print("-" * 70)
-    print(f"{'Fair LSTM (本实验)':<20} {macro_f1:<12.4f} {'✅ 完全对齐':<10} {'边级别':<12}")
-    print(f"{'GraphSAGE':<20} {'0.873':<12} {'✅ 完全对齐':<10} {'边级别':<12}")
-    print(f"{'Graph Transformer':<20} {'0.94+':<12} {'✅ 完全对齐':<10} {'边级别':<12}")
-    print("=" * 70)
+    #打印
+    print(f"🏆 最终 Macro-F1: {macro_f1:.4f}")
+    print(f"📊 Accuracy: {accuracy:.4f}")
+    print(f"📈 Mean AUC-ROC: {auc_roc:.4f}")
+    print(f"📉 Mean AUC-PR: {auc_pr:.4f}")
+    print(f"❌ 宏平均误报率 (Macro-FPR): {macro_fpr:.4f}")
+    print(f"⚠️ 宏平均漏报率 (Macro-FNR): {macro_fnr:.4f}")
+    print(f"⚖️ 加权误报率: {weighted_fpr:.4f}")
+    print(f"⚖️ 加权漏报率: {weighted_fnr:.4f}")
 
-    print(f"\n⏱️ 训练耗时: {train_time:.2f} 分钟")
-    print(f"💾 结果已保存至: {config.run_dir}")
+    train_history = {
+        'train_loss': trainer.train_losses,
+        'val_f1': trainer.val_f1s,
+        'test_f1': trainer.test_f1s
+    }
 
-    return macro_f1
+    # 保存结果
+    save_results(metrics, model, lstm_config, attack_names,
+                 train_history, test_labels, test_preds, test_probs)
 
+    print(f"\n💾 所有结果已保存至: {lstm_config.run_dir}")
 
-if __name__ == "__main__":
-    try:
-        final_f1 = run_fair_lstm()
-    except Exception as e:
-        print(f"\n❌ 错误: {e}")
-        import traceback
-
-        traceback.print_exc()
+    train_time = time.time() - train_start_time
+    print(f"\n⏱️ 训练耗时: {train_time / 60:.2f} 分钟)")

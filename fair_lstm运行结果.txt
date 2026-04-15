@@ -1,104 +1,40 @@
-D:\conda\envs\pyg38\python.exe D:\01Thesis\04代码实现\project\src\fair_lstm.py 
-======================================================================
-⚖️ 公平LSTM - 与GraphSAGE/Transformer严格对齐
-======================================================================
-数据路径: D:/01Thesis/04代码实现/project/data/train_test_network.csv
-隐藏维度: 128 (对齐)
-层数: 2 (对齐)
-学习率: 0.0005 (对齐)
-Dropout: 0.2 (对齐)
-批次大小: 10000 (对齐)
-输出目录: ./fair_lstm_outputs\fair_lstm_run_20260315_153733
-======================================================================
+[1/4] 加载数据...
+数据形状: (211043, 44)
+
+📊 训练集类别分布:
+   backdoor: 12000
+   ddos: 12000
+   dos: 12000
+   injection: 12000
+   mitm: 625
+   normal: 30000
+   password: 12000
+   ransomware: 12000
+   scanning: 12000
+   xss: 12000
 
 使用设备: cpu
 
-[1/4] 加载数据: D:/01Thesis/04代码实现/project/data/train_test_network.csv
-   原始数据形状: (211043, 44)
+🤖 模型参数量: 762,634
 
-   划分后:
-     训练集: 126625 条边
-     验证集: 42209 条边
-     测试集: 42209 条边
+🚀 开始训练LSTM基线...
+   参数: epochs=300, lr=0.0003
+Epoch  20 | Loss: 0.6864 | Val F1: 0.5139 | Test F1: 0.5096 | Best Val: 0.5139
+Epoch  40 | Loss: 0.6393 | Val F1: 0.5519 | Test F1: 0.5407 | Best Val: 0.5519
+Epoch  60 | Loss: 0.6191 | Val F1: 0.5905 | Test F1: 0.5825 | Best Val: 0.5907
+Epoch  80 | Loss: 0.6049 | Val F1: 0.6036 | Test F1: 0.5954 | Best Val: 0.6276
+Epoch 100 | Loss: 0.5900 | Val F1: 0.6284 | Test F1: 0.6190 | Best Val: 0.6284
+Epoch 120 | Loss: 0.5823 | Val F1: 0.6320 | Test F1: 0.6229 | Best Val: 0.6334
+Epoch 140 | Loss: 0.5711 | Val F1: 0.6455 | Test F1: 0.6370 | Best Val: 0.6455
+Epoch 160 | Loss: 0.5636 | Val F1: 0.6548 | Test F1: 0.6449 | Best Val: 0.6548
+Epoch 180 | Loss: 0.5526 | Val F1: 0.6547 | Test F1: 0.6443 | Best Val: 0.6553
+Epoch 200 | Loss: 0.5475 | Val F1: 0.6590 | Test F1: 0.6508 | Best Val: 0.6610
+Epoch 220 | Loss: 0.5418 | Val F1: 0.6598 | Test F1: 0.6514 | Best Val: 0.6610
+Epoch 240 | Loss: 0.5417 | Val F1: 0.6593 | Test F1: 0.6516 | Best Val: 0.6681
+Epoch 260 | Loss: 0.5365 | Val F1: 0.6582 | Test F1: 0.6508 | Best Val: 0.6681
+Epoch 280 | Loss: 0.5352 | Val F1: 0.6684 | Test F1: 0.6627 | Best Val: 0.6684
+Epoch 300 | Loss: 0.5316 | Val F1: 0.6826 | Test F1: 0.6766 | Best Val: 0.6826
 
-📊 各类别样本数:
-------------------------------------------------------------
-类别              训练集        验证集        测试集        总计        
-------------------------------------------------------------
-backdoor        12000      4000       4000       20000     
-ddos            12000      4000       4000       20000     
-dos             12000      4000       4000       20000     
-injection       12000      4000       4000       20000     
-mitm            625        209        209        1043      
-normal          30000      10000      10000      50000     
-password        12000      4000       4000       20000     
-ransomware      12000      4000       4000       20000     
-scanning        12000      4000       4000       20000     
-xss             12000      4000       4000       20000     
-------------------------------------------------------------
-总计              126625     42209      42209      211043    
+✅ 加载最佳验证集模型 (Val F1: 0.6826)
 
-🎯 injection (ID:3) 权重提升: 2.2x -> 2.32
-
-🎯 password (ID:6) 权重提升: 2.5x -> 2.64
-
-🎯 mitm (ID:4) 权重提升: 1.0x -> 20.26
-
-⚖️ 最终类别权重:
-   backdoor: 1.06
-   ddos: 1.06
-   dos: 1.06
-   injection: 2.32
-   mitm: 20.26
-   normal: 0.42
-   password: 2.64
-   ransomware: 1.06
-   scanning: 1.06
-   xss: 1.06
-
-🤖 模型参数量: 765,066
-
-[2/4] 开始训练 (Epochs: 300)...
-Epoch  20 | Train Loss: 0.6183 | Val Loss: 0.5241 | Val F1: 0.6637 | Test F1: 0.6611
-Epoch  40 | Train Loss: 0.4117 | Val Loss: 0.3418 | Val F1: 0.7450 | Test F1: 0.7406
-Epoch  60 | Train Loss: 0.3850 | Val Loss: 0.3173 | Val F1: 0.8005 | Test F1: 0.7983
-Epoch  80 | Train Loss: 0.3395 | Val Loss: 0.3234 | Val F1: 0.7753 | Test F1: 0.7746
-Epoch 100 | Train Loss: 0.3156 | Val Loss: 0.2517 | Val F1: 0.8249 | Test F1: 0.8222
-Epoch 120 | Train Loss: 0.2966 | Val Loss: 0.2388 | Val F1: 0.8267 | Test F1: 0.8238
-Epoch 140 | Train Loss: 0.2972 | Val Loss: 0.2343 | Val F1: 0.8267 | Test F1: 0.8236
-Epoch 160 | Train Loss: 0.2955 | Val Loss: 0.2303 | Val F1: 0.8429 | Test F1: 0.8409
-Epoch 180 | Train Loss: 0.2757 | Val Loss: 0.2180 | Val F1: 0.8468 | Test F1: 0.8448
-Epoch 200 | Train Loss: 0.2547 | Val Loss: 0.2058 | Val F1: 0.8494 | Test F1: 0.8464
-Epoch 220 | Train Loss: 0.2473 | Val Loss: 0.2432 | Val F1: 0.8325 | Test F1: 0.8310
-Epoch 240 | Train Loss: 0.2547 | Val Loss: 0.1968 | Val F1: 0.8603 | Test F1: 0.8587
-Epoch 260 | Train Loss: 0.2348 | Val Loss: 0.1826 | Val F1: 0.8618 | Test F1: 0.8593
-Epoch 280 | Train Loss: 0.2381 | Val Loss: 0.1883 | Val F1: 0.8618 | Test F1: 0.8608
-Epoch 300 | Train Loss: 0.2301 | Val Loss: 0.1863 | Val F1: 0.8646 | Test F1: 0.8629
-
-✅ 加载最佳验证集模型 (Val F1: 0.8648)
-
-[3/4] 最终测试集评估...
-
-======================================================================
-📊 公平LSTM评估结果
-======================================================================
-
-🏆 宏观F1 (Macro-F1): 0.8631
-📊 准确率 (Accuracy): 0.9184
-⚖️ 加权F1 (Weighted-F1): 0.9222
-
-----------------------------------------------------------------------
-各类别详细指标:
-----------------------------------------------------------------------
-类别              Precision    Recall       F1-Score     样本数     
-----------------------------------------------------------------------
-backdoor        0.9573       0.9972       0.9769       4000    
-ddos            0.9696       0.8935       0.9300       4000    
-dos             0.9995       0.9187       0.9574       4000    
-injection       0.7370       0.8552       0.7917       4000    
-mitm            0.2757       0.8995       0.4220       209     
-normal          1.0000       1.0000       1.0000       10000   
-password        0.8560       0.8325       0.8441       4000    
-ransomware      0.9599       0.9267       0.9430       4000    
-scanning        0.9678       0.8648       0.9134       4000    
-xss             0.8493       0.8555       0.8524       4000    
+🏆 最终测试集 Macro-F1: 0.6766

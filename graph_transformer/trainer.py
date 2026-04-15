@@ -133,14 +133,14 @@ class Trainer:
                 self.val_f1s.append(val_f1)     #把当前轮次的验证集 F1 分数添加到历史列表中
                 self.test_f1s.append(test_f1)   #把当前轮次的测试集 F1 分数添加到历史列表中
 
-                # 学习率调整（基于验证集F1）
+                #学习率调整（基于验证集F1）
                 if scheduler is not None:       #如果调度器存在
                     if isinstance(scheduler,torch.optim.lr_scheduler.ReduceLROnPlateau):  #如果是 ReduceLROnPlateau 类型的调度器
                         scheduler.step(val_f1)  #需要传入验证集 F1 分数（它根据指标是否提升来决定是否降学习率）
                     else:                       #如果是其他类型的调度器
                         scheduler.step()        #其他调度器直接步进,不需要传参数
 
-                # 早停检查
+                #早停检查
                 if val_f1 > self.best_val_f1:       #如果当前验证集 F1 比历史最高还要高
                     self.best_val_f1 = val_f1       #更新历史最高 F1 分数
                     self.best_state = copy.deepcopy(self.model.state_dict())    #深拷贝当前模型参数（保存最佳模型）

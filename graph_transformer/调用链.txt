@@ -1,34 +1,25 @@
-main.py __main__
-    ├── parse_args() → args
-    ├── Config() → config
-    │   └── __post_init__() → 创建 run_dir
-    ├── config.save() → config.yaml
-    │
-    └── run_optimized_training(config) → final_f1
-        ├── DataProcessor(config) → processor
-        │   ├── load_data() → df
-        │   └── preprocess(df) → final_df, train_idx, val_idx, test_idx, attack_names, feature_cols
-        │
-        ├── GraphBuilder() → builder
-        │   └── build(...) → data (PyG Data对象)
-        │
-        ├── GraphTransformer(...) → model
-        ├── FocalLoss(...) → criterion  
-        ├── AdamW(...) → optimizer
-        ├── ReduceLROnPlateau(...) → scheduler
-        ├── Trainer(...) → trainer
-        │   └── train(data, criterion, optimizer, scheduler) → model, best_thresholds
-        │       ├── EdgeBatchLoader(data, shuffle=True) → train_loader
-        │       ├── EdgeBatchLoader(data, shuffle=False) → val_loader
-        │       ├── train_epoch(loader, criterion, optimizer) → loss
-        │       │   └── GraphTransformer.forward() → out
-        │       │       └── MAF.forward() → x_fused
-        │       ├── evaluate(loader, 'val') → preds, labels, probs
-        │       ├── evaluate(loader, 'test') → preds, labels, probs
-        │       └── AdaptiveThresholdOptimizer.fit() → thresholds
-        │
-        ├── evaluate(val_loader, 'test') → test_preds, test_labels, test_probs
-        ├── AdaptiveThresholdOptimizer.predict() → y_pred_optimized
-        ├── MetricsCalculator.calculate_all() → metrics
-        ├── plot_results() → confusion_matrix.png, training_curves.png
-        └── 保存 results.json
+DataProcessor.load_data() 
+    ↓ 输出: df (DataFrame, 原始数据)
+    
+DataProcessor.preprocess()
+    ↓ 输出: final_df, train_idx, val_idx, test_idx, attack_names, feature_cols
+    【关键操作】数据划分 → 特征编码 → 标准化 → 目标编码
+    
+GraphBuilder.build()
+    ↓ 输出: data (PyG Data对象，图结构)
+    【关键操作】IP→节点映射 → 构建边 → ⚠️只用训练边建节点特征（防泄露）
+    
+Trainer.train()
+    ↓ 输出: model (训练好的模型), best_thresholds (最优阈值字典)
+    【内部循环】epoch × 300次: 训练 → 评估 → 早停检查 → 保存最佳模型
+    
+Trainer.evaluate()
+    ↓ 输出: preds, labels, probs (预测结果、真实标签、概率分布)
+    【关键】应用自适应阈值得到优化后的预测
+    
+MetricsCalculator.calculate_all()
+    ↓ 输出: metrics (完整指标字典)
+    【计算】F1/FPR/FNR/AUC/混淆矩阵等20+个指标
+    
+plot_results()
+    【输出】confusion_matrix.png + training_curves.png (可视化)
