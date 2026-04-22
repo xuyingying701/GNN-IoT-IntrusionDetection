@@ -64,7 +64,7 @@ class Config:
         """创建实验专用的输出目录"""
         os.makedirs(self.output_dir, exist_ok=True)              #创建输出目录，如果目录已存在则不报错（exist_ok=True）
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")#获取当前时间并格式化为"年月日_时分秒"作为时间戳
-        self.run_dir = os.path.join(self.output_dir, f"graph_transformer_run_{self.timestamp}")#拼接本次运行的完整目录路径
+        self.run_dir = os.path.join(self.output_dir, f"graphsage_ids_run_{self.timestamp}")#拼接本次运行的完整目录路径
         os.makedirs(self.run_dir, exist_ok=True)                 #创建本次运行的专属目录run_dir，用于保存配置、结果和图表
 
     def save(self):

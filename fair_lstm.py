@@ -128,19 +128,19 @@ class LSTMBaseline(nn.Module):
 
     def _init_weights(self):
         """初始化权重（对齐Transformer）"""
-        for name, param in self.lstm.named_parameters():
-            if 'weight_ih' in name:
+        for name, param in self.lstm.named_parameters():#named_parameters() 是 PyTorch 中所有神经网络模块都有的方法，用于获取模块中所有可训练参数的名称和数值
+            if 'weight_ih' in name:              #输入到隐藏层的权重
                 nn.init.xavier_uniform_(param)
-            elif 'weight_hh' in name:
+            elif 'weight_hh' in name:            #隐藏层到隐藏层的权重
                 nn.init.orthogonal_(param)
-            elif 'bias' in name:
+            elif 'bias' in name:                 #偏置
                 nn.init.constant_(param, 0)
 
         for module in self.classifier.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
+                nn.init.xavier_uniform_(module.weight)    #权重用 Xavier 初始化
                 if module.bias is not None:
-                    nn.init.constant_(module.bias, 0)
+                    nn.init.constant_(module.bias, 0) #偏置初始化为 0
 
     def forward(self, x):
         """
@@ -159,7 +159,7 @@ class LSTMBaseline(nn.Module):
         #3. LSTM前向
         lstm_out, (h_n, c_n) = self.lstm(x)  #[batch, 1, 256]（双向=256）
 
-        #4. 取最后时间步的输出
+        #4. 取最后时间步的输出5
         out = lstm_out[:, -1, :]    #[batch, 128 * 2]
 
         #5. 分类器
